@@ -1,155 +1,79 @@
-// ============================================================
-// src/api/client.ts
-// Client HTTP de base — gestion des tokens, erreurs, refresh
-// ============================================================
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-import type { ApiError } from '@/types';
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1';
 
-const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api')
-  .replace(/\/+$/, ''); // neutralise les / finaux
+export const apiClient = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 15000,
+});
 
-// ---- Gestion du token Sanctum ----
-const TOKEN_KEY = 'vanny_token';
-
-export const tokenStorage = {
-  get: (): string | null => localStorage.getItem(TOKEN_KEY),
-  set: (token: string): void => localStorage.setItem(TOKEN_KEY, token),
-  remove: (): void => localStorage.removeItem(TOKEN_KEY),
-};
-
-// ---- Classe d'erreur API personnalisée ----
-export class ApiException extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public errors?: Record<string, string[]>,
-  ) {
-    super(message);
-    this.name = 'ApiException';
-  }
-}
-
-// ---- Construction des headers ----
-function buildHeaders(isMultipart = false): HeadersInit {
-  const headers: HeadersInit = {
-    Accept: 'application/json',
-  };
-
-  if (!isMultipart) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const token = tokenStorage.get();
+// ─── Request interceptor: attach access token ──────────────────
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  const token = localStorage.getItem('accessToken');
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
   }
+  return config;
+});
 
-  return headers;
+// ─── Response interceptor: auto-refresh on 401 ─────────────────
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (v: any) => void; reject: (v: any) => void }> = [];
+
+function processQueue(error: AxiosError | null, token: string | null = null) {
+  failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve(token)));
+  failedQueue = [];
 }
 
-// ---- Traitement de la réponse ----
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (response.status === 204) {
-    return undefined as unknown as T;
-  }
+apiClient.interceptors.response.use(
+  (res) => res,
+  async (error: AxiosError) => {
+    const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-  const data = await response.json().catch(() => null);
+    if (error.response?.status === 401 && !original._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          original.headers.Authorization = `Bearer ${token}`;
+          return apiClient(original);
+        });
+      }
 
-  if (!response.ok) {
-    const error = data as ApiError | null;
+      original._retry = true;
+      isRefreshing = true;
 
-    if (response.status === 401) {
-      tokenStorage.remove();
-      window.dispatchEvent(new CustomEvent('auth:expired'));
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+        return Promise.reject(error);
+      }
+
+      try {
+        const res = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+        const { accessToken, refreshToken: newRefresh } = res.data.data;
+
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', newRefresh);
+
+        apiClient.defaults.headers.Authorization = `Bearer ${accessToken}`;
+        original.headers.Authorization = `Bearer ${accessToken}`;
+        processQueue(null, accessToken);
+        return apiClient(original);
+      } catch (refreshError) {
+        processQueue(refreshError as AxiosError, null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
 
-    throw new ApiException(
-      error?.message ?? `Erreur ${response.status}`,
-      response.status,
-      error?.errors,
-    );
-  }
-
-  return data as T;
-}
-
-// ---- Normalisation endpoint ----
-function normalizeEndpoint(endpoint: string): string {
-  return endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-}
-
-// ---- Méthodes HTTP ----
-async function get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
-  let url = `${BASE_URL}${normalizeEndpoint(endpoint)}`;
-
-  if (params) {
-    const query = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        query.append(key, String(value));
-      }
-    });
-
-    const qs = query.toString();
-    if (qs) url += `?${qs}`;
-  }
-
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: buildHeaders(),
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function post<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function postMultipart<T>(endpoint: string, formData: FormData): Promise<T> {
-  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
-    method: 'POST',
-    headers: buildHeaders(true),
-    body: formData,
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function put<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
-    method: 'PUT',
-    headers: buildHeaders(),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function patch<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
-    method: 'PATCH',
-    headers: buildHeaders(),
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  return handleResponse<T>(response);
-}
-
-async function del<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
-    method: 'DELETE',
-    headers: buildHeaders(),
-  });
-
-  return handleResponse<T>(response);
-}
-
-// ---- Export du client ----
-export const http = { get, post, postMultipart, put, patch, delete: del };
+    return Promise.reject(error);
+  },
+);
