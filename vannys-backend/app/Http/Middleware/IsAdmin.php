@@ -10,6 +10,11 @@ class IsAdmin
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Toujours laisser passer les requêtes OPTIONS (CORS preflight)
+        if ($request->isMethod('OPTIONS')) {
+            return $next($request);
+        }
+
         if (!$request->user() || !$request->user()->isAdmin()) {
             return response()->json(['message' => 'Accès refusé.'], 403);
         }
