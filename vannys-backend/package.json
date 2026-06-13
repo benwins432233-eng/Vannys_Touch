@@ -51,6 +51,9 @@
     "@types/uuid": "^9.0.8",
     "prisma": "^5.14.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "eslint": "^9.0.0",
+    "@typescript-eslint/parser": "^8.52.0",
+    "@typescript-eslint/eslint-plugin": "^8.52.0"
   }
 }
