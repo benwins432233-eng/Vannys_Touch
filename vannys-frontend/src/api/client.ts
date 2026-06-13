@@ -5,7 +5,8 @@
 
 import type { ApiError } from '@/types';
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api';
+const BASE_URL = (import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api')
+  .replace(/\/+$/, ''); // neutralise les / finaux
 
 // ---- Gestion du token Sanctum ----
 const TOKEN_KEY = 'vanny_token';
@@ -48,7 +49,6 @@ function buildHeaders(isMultipart = false): HeadersInit {
 
 // ---- Traitement de la réponse ----
 async function handleResponse<T>(response: Response): Promise<T> {
-  // 204 No Content
   if (response.status === 204) {
     return undefined as unknown as T;
   }
@@ -58,7 +58,6 @@ async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const error = data as ApiError | null;
 
-    // 401 → token expiré, on déconnecte
     if (response.status === 401) {
       tokenStorage.remove();
       window.dispatchEvent(new CustomEvent('auth:expired'));
@@ -74,9 +73,14 @@ async function handleResponse<T>(response: Response): Promise<T> {
   return data as T;
 }
 
+// ---- Normalisation endpoint ----
+function normalizeEndpoint(endpoint: string): string {
+  return endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+}
+
 // ---- Méthodes HTTP ----
 async function get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
-  let url = `${BASE_URL}${endpoint}`;
+  let url = `${BASE_URL}${normalizeEndpoint(endpoint)}`;
 
   if (params) {
     const query = new URLSearchParams();
@@ -85,6 +89,7 @@ async function get<T>(endpoint: string, params?: Record<string, unknown>): Promi
         query.append(key, String(value));
       }
     });
+
     const qs = query.toString();
     if (qs) url += `?${qs}`;
   }
@@ -98,7 +103,7 @@ async function get<T>(endpoint: string, params?: Record<string, unknown>): Promi
 }
 
 async function post<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
     method: 'POST',
     headers: buildHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -108,9 +113,9 @@ async function post<T>(endpoint: string, body?: unknown): Promise<T> {
 }
 
 async function postMultipart<T>(endpoint: string, formData: FormData): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
     method: 'POST',
-    headers: buildHeaders(true),   // pas de Content-Type → boundary auto
+    headers: buildHeaders(true),
     body: formData,
   });
 
@@ -118,7 +123,7 @@ async function postMultipart<T>(endpoint: string, formData: FormData): Promise<T
 }
 
 async function put<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
     method: 'PUT',
     headers: buildHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -128,7 +133,7 @@ async function put<T>(endpoint: string, body?: unknown): Promise<T> {
 }
 
 async function patch<T>(endpoint: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
     method: 'PATCH',
     headers: buildHeaders(),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -138,7 +143,7 @@ async function patch<T>(endpoint: string, body?: unknown): Promise<T> {
 }
 
 async function del<T>(endpoint: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
+  const response = await fetch(`${BASE_URL}${normalizeEndpoint(endpoint)}`, {
     method: 'DELETE',
     headers: buildHeaders(),
   });
