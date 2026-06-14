@@ -270,3 +270,8 @@ enum orders_payment_status {
   paid
   failed
 }
+
+enum Role {
+  USER
+  ADMIN
+}

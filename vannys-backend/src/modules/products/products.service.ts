@@ -86,8 +86,9 @@ export class ProductsService {
   }
 
   async findById(id: string) {
+    const numericId = BigInt(id);
     const product = await this.prisma.product.findUnique({
-      where: { id },
+      where: { id: numericId },
       include: { category: true, images: { orderBy: { sortOrder: 'asc' } }, variants: true },
     });
     if (!product) throw new NotFoundException('Product not found');
@@ -182,11 +183,12 @@ export class ProductsService {
   }
 
   async deleteImage(imageId: string) {
-    const image = await this.prisma.productImage.findUnique({ where: { id: imageId } });
+    const numericImageId = BigInt(imageId);
+    const image = await this.prisma.productImage.findUnique({ where: { id: numericImageId } });
     if (!image) throw new NotFoundException('Image not found');
 
     await this.cloudinary.deleteByPublicId(image.cloudinaryId).catch(() => null);
-    await this.prisma.productImage.delete({ where: { id: imageId } });
+    await this.prisma.productImage.delete({ where: { id: numericImageId } });
 
     // If deleted image was primary, promote the next one
     const remaining = await this.prisma.productImage.findFirst({
@@ -201,7 +203,8 @@ export class ProductsService {
   }
 
   async setPrimaryImage(imageId: string) {
-    const image = await this.prisma.productImage.findUnique({ where: { id: imageId } });
+    const numericBingImageId = BigInt(imageId);
+    const image = await this.prisma.productImage.findUnique({ where: { id: numericBingImageId } });
     if (!image) throw new NotFoundException('Image not found');
 
     // Reset all
@@ -210,7 +213,7 @@ export class ProductsService {
       data: { isPrimary: false },
     });
     // Set new primary
-    return this.prisma.productImage.update({ where: { id: imageId }, data: { isPrimary: true } });
+    return this.prisma.productImage.update({ where: { id: numericBingImageId }, data: { isPrimary: true } });
   }
 
   // ─── Private helpers ─────────────────────────────────────────
@@ -245,7 +248,8 @@ export class ProductsService {
 
     while (true) {
       const existing = await this.prisma.product.findUnique({ where: { slug } });
-      if (!existing || existing.id === excludeId) break;
+      const excludeIdBigInt = excludeId ? BigInt(excludeId) : undefined;
+      if (!existing || existing.id === excludeIdBigInt) break;
       slug = `${base}-${counter++}`;
     }
 

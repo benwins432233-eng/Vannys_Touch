@@ -36,8 +36,9 @@ export class UsersService {
   }
 
   async findOne(id: string) {
+    const numericId = BigInt(id);
     const user = await this.prisma.user.findUnique({
-      where: { id },
+      where: { id: numericId },
       select: {
         id: true,
         firstName: true,
@@ -63,7 +64,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto) {
     await this.findOne(id);
     return this.prisma.user.update({
-      where: { id },
+      where: { id: BigInt(id) },
       data: dto,
       select: {
         id: true, firstName: true, lastName: true, email: true,
@@ -75,7 +76,7 @@ export class UsersService {
   async updateRole(id: string, dto: UpdateUserRoleDto) {
     await this.findOne(id);
     return this.prisma.user.update({
-      where: { id },
+      where: { id: BigInt(id) },
       data: { role: dto.role },
       select: { id: true, email: true, role: true },
     });
@@ -84,7 +85,7 @@ export class UsersService {
   async toggleActive(id: string) {
     const user = await this.findOne(id);
     return this.prisma.user.update({
-      where: { id },
+      where: { id: BigInt(id) },
       data: { isActive: !user.isActive },
       select: { id: true, email: true, isActive: true },
     });
