@@ -25,7 +25,7 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({ summary: 'Update current user profile' })
   updateMe(@CurrentUser() user: User, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(user.id, dto);
+    return this.usersService.update(String(user.id), dto);
   }
 
   @Get()

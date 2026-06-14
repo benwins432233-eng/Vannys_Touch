@@ -272,6 +272,6 @@ enum orders_payment_status {
 }
 
 enum Role {
-  USER
-  ADMIN
+  user
+  admin
 }
