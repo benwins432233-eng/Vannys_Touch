@@ -1,27 +1,26 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { UseGuards } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { Public } from '../../common/decorators/public.decorator';
 
 @ApiTags('Categories')
 @Controller('categories')
-@UseGuards(JwtAuthGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Public()
   @Get()
-  @ApiOperation({ summary: 'List all active categories' })
+  @ApiOperation({ summary: 'List all active categories (public)' })
   findAll() {
     return this.categoriesService.findAll();
   }
 
   @Public()
   @Get(':slug')
-  @ApiOperation({ summary: 'Get category by slug' })
+  @ApiOperation({ summary: 'Get category by slug (public)' })
   findOne(@Param('slug') slug: string) {
     return this.categoriesService.findBySlug(slug);
   }

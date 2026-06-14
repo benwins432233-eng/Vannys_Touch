@@ -13,19 +13,17 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '@prisma/client';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  // ─── User routes ─────────────────────────────────────────────
+  // ── User routes ───────────────────────────────────────────
 
   @Get('my')
   @ApiOperation({ summary: 'Get current user orders' })
@@ -49,7 +47,7 @@ export class OrdersController {
     return this.ordersService.findOne(id, user.id, user.role);
   }
 
-  // ─── Admin routes ─────────────────────────────────────────────
+  // ── Admin routes ──────────────────────────────────────────
 
   @Get('admin/all')
   @UseGuards(AdminGuard)
@@ -60,7 +58,7 @@ export class OrdersController {
 
   @Get('admin/stats')
   @UseGuards(AdminGuard)
-  @ApiOperation({ summary: '[Admin] Get order statistics' })
+  @ApiOperation({ summary: '[Admin] Order statistics' })
   stats() {
     return this.ordersService.getStats();
   }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Resend } from '@resend/node';
 import { Order, User } from '@prisma/client';
 
 type OrderWithItems = Order & {
@@ -19,58 +19,57 @@ type OrderWithItems = Order & {
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
-  private transporter: nodemailer.Transporter;
+  private readonly resend: Resend;
   private readonly fromAddress: string;
   private readonly fromName: string;
   private readonly adminAddress: string;
   private readonly frontendUrl: string;
 
   constructor(private readonly config: ConfigService) {
-    this.fromAddress = config.get('MAIL_FROM_ADDRESS', 'noreply@vannystouch.com');
+    const apiKey = config.getOrThrow<string>('RESEND_API_KEY');
+    this.resend = new Resend(apiKey);
     this.fromName = config.get('MAIL_FROM_NAME', 'Vannys Touch');
-    this.adminAddress = config.get('MAIL_ADMIN_ADDRESS', 'admin@vannystouch.com');
+    this.fromAddress = config.get('MAIL_FROM_ADDRESS', 'noreply@vannystouch.com');
+    this.adminAddress = config.getOrThrow<string>('MAIL_ADMIN_ADDRESS');
     this.frontendUrl = config.get('FRONTEND_URL', 'http://localhost:5173');
-
-    this.transporter = nodemailer.createTransport({
-      host: config.get('MAIL_HOST', 'smtp.gmail.com'),
-      port: config.get<number>('MAIL_PORT', 587),
-      secure: config.get('MAIL_SECURE') === 'true',
-      auth: {
-        user: config.get('MAIL_USER'),
-        pass: config.get('MAIL_PASS'),
-      },
-    });
   }
 
   private async send(to: string, subject: string, html: string): Promise<void> {
     try {
-      await this.transporter.sendMail({
-        from: `"${this.fromName}" <${this.fromAddress}>`,
+      const { error } = await this.resend.emails.send({
+        from: `${this.fromName} <${this.fromAddress}>`,
         to,
         subject,
         html,
       });
-      this.logger.log(`Email sent → ${to}: ${subject}`);
-    } catch (err) {
-      this.logger.error(`Failed to send email to ${to}: ${err.message}`);
+      if (error) {
+        this.logger.error(`Resend error → ${to}: ${JSON.stringify(error)}`);
+      } else {
+        this.logger.log(`Email sent → ${to}: ${subject}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Failed to send email to ${to}: ${err?.message}`);
     }
   }
 
   async sendWelcome(user: User): Promise<void> {
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h1 style="color: #c8a96e;">Bienvenue chez Vannys Touch ! 🎉</h1>
-          <p>Bonjour <strong>${user.firstName}</strong>,</p>
-          <p>Votre compte a été créé avec succès. Vous pouvez dès maintenant explorer notre collection et passer vos premières commandes.</p>
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${this.frontendUrl}/products" style="background: #c8a96e; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+          <h1 style="color:#c8a96e;margin-top:0;">Bienvenue chez Vannys Touch 🎉</h1>
+          <p style="color:#444;">Bonjour <strong>${user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Votre compte a été créé avec succès. Vous pouvez dès maintenant découvrir notre collection et passer vos premières commandes.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${this.frontendUrl}/products"
+               style="background:#c8a96e;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
               Découvrir la boutique
             </a>
           </div>
-          <p style="color: #888; font-size: 13px;">L'équipe Vannys Touch</p>
+          <p style="color:#999;font-size:13px;margin-bottom:0;">L'équipe Vannys Touch</p>
         </div>
       </body>
       </html>
@@ -81,18 +80,19 @@ export class MailService {
   async sendAdminNewUser(user: User): Promise<void> {
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h2 style="color: #333;">👤 Nouvel utilisateur inscrit</h2>
-          <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 8px; color: #666;">Nom :</td><td><strong>${user.firstName} ${user.lastName}</strong></td></tr>
-            <tr><td style="padding: 8px; color: #666;">Email :</td><td>${user.email}</td></tr>
-            <tr><td style="padding: 8px; color: #666;">Téléphone :</td><td>${user.phone || '—'}</td></tr>
-            <tr><td style="padding: 8px; color: #666;">Date :</td><td>${new Date().toLocaleString('fr-FR')}</td></tr>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h2 style="color:#333;margin-top:0;">👤 Nouvel utilisateur inscrit</h2>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="padding:8px 0;color:#888;width:120px;">Nom</td><td><strong>${user.firstName} ${user.lastName}</strong></td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Email</td><td>${user.email}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Téléphone</td><td>${user.phone ?? '—'}</td></tr>
+            <tr><td style="padding:8px 0;color:#888;">Date</td><td>${new Date().toLocaleString('fr-FR')}</td></tr>
           </table>
-          <div style="margin-top: 24px;">
-            <a href="${this.frontendUrl}/admin/users" style="background: #333; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
+          <div style="margin-top:24px;">
+            <a href="${this.frontendUrl}/admin/users"
+               style="background:#333;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;">
               Voir dans l'admin
             </a>
           </div>
@@ -106,18 +106,21 @@ export class MailService {
   async sendPasswordReset(user: User): Promise<void> {
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h2 style="color: #c8a96e;">🔐 Mot de passe modifié</h2>
-          <p>Bonjour <strong>${user.firstName}</strong>,</p>
-          <p>Votre mot de passe a été modifié avec succès. Si vous n'êtes pas à l'origine de cette action, contactez-nous immédiatement.</p>
-          <p style="color: #888; font-size: 13px; margin-top: 32px;">L'équipe Vannys Touch</p>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h2 style="color:#c8a96e;margin-top:0;">🔐 Mot de passe modifié</h2>
+          <p style="color:#444;">Bonjour <strong>${user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Votre mot de passe a été modifié avec succès.
+            Si vous n'êtes pas à l'origine de cette action, contactez-nous immédiatement.
+          </p>
+          <p style="color:#999;font-size:13px;margin-bottom:0;">L'équipe Vannys Touch</p>
         </div>
       </body>
       </html>
     `;
-    await this.send(user.email, '🔐 Mot de passe modifié - Vannys Touch', html);
+    await this.send(user.email, '🔐 Mot de passe modifié — Vannys Touch', html);
   }
 
   async sendOrderConfirmed(order: OrderWithItems): Promise<void> {
@@ -125,14 +128,14 @@ export class MailService {
       .map(
         (item) => `
         <tr>
-          <td style="padding: 10px; border-bottom: 1px solid #eee;">
+          <td style="padding:12px 8px;border-bottom:1px solid #f0ebe3;font-size:14px;color:#444;">
             ${item.productName}
-            ${item.variantColor ? `<br><small style="color:#888;">Couleur: ${item.variantColor}</small>` : ''}
-            ${item.variantSize ? `<br><small style="color:#888;">Taille: ${item.variantSize}</small>` : ''}
+            ${item.variantColor ? `<br><span style="color:#999;font-size:12px;">Couleur : ${item.variantColor}</span>` : ''}
+            ${item.variantSize ? `<br><span style="color:#999;font-size:12px;">Taille : ${item.variantSize}</span>` : ''}
           </td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${Number(item.unitPrice).toLocaleString('fr-FR')} FCFA</td>
-          <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">${Number(item.subtotal).toLocaleString('fr-FR')} FCFA</td>
+          <td style="padding:12px 8px;border-bottom:1px solid #f0ebe3;text-align:center;color:#555;">${item.quantity}</td>
+          <td style="padding:12px 8px;border-bottom:1px solid #f0ebe3;text-align:right;color:#555;">${Number(item.unitPrice).toLocaleString('fr-FR')} FCFA</td>
+          <td style="padding:12px 8px;border-bottom:1px solid #f0ebe3;text-align:right;font-weight:600;">${Number(item.subtotal).toLocaleString('fr-FR')} FCFA</td>
         </tr>
       `,
       )
@@ -140,51 +143,66 @@ export class MailService {
 
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h1 style="color: #c8a96e;">Commande confirmée ✅</h1>
-          <p>Bonjour <strong>${order.user.firstName}</strong>,</p>
-          <p>Nous avons bien reçu votre commande <strong>${order.reference}</strong>. Notre équipe va la traiter et vous contactera pour la livraison.</p>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h1 style="color:#c8a96e;margin-top:0;">Commande confirmée ✅</h1>
+          <p style="color:#444;">Bonjour <strong>${order.user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Nous avons bien reçu votre commande <strong>${order.reference}</strong>.
+            Notre équipe va la traiter et vous contactera pour la livraison.
+          </p>
 
-          <h3 style="margin-top: 28px;">Détails de la commande</h3>
-          <table style="width: 100%; border-collapse: collapse;">
+          <h3 style="color:#333;border-bottom:2px solid #f0ebe3;padding-bottom:8px;">Votre commande</h3>
+          <table style="width:100%;border-collapse:collapse;">
             <thead>
-              <tr style="background: #f5f0e8;">
-                <th style="padding: 10px; text-align: left;">Produit</th>
-                <th style="padding: 10px; text-align: center;">Qté</th>
-                <th style="padding: 10px; text-align: right;">Prix</th>
-                <th style="padding: 10px; text-align: right;">Total</th>
+              <tr style="background:#f9f7f4;">
+                <th style="padding:10px 8px;text-align:left;font-size:12px;color:#888;text-transform:uppercase;">Produit</th>
+                <th style="padding:10px 8px;text-align:center;font-size:12px;color:#888;text-transform:uppercase;">Qté</th>
+                <th style="padding:10px 8px;text-align:right;font-size:12px;color:#888;text-transform:uppercase;">Prix unit.</th>
+                <th style="padding:10px 8px;text-align:right;font-size:12px;color:#888;text-transform:uppercase;">Total</th>
               </tr>
             </thead>
             <tbody>${itemsHtml}</tbody>
           </table>
 
-          <div style="margin-top: 16px; text-align: right;">
-            <p>Sous-total : <strong>${Number(order.subtotal).toLocaleString('fr-FR')} FCFA</strong></p>
-            <p>Livraison : <strong>${Number(order.shippingFee) === 0 ? 'Gratuite' : Number(order.shippingFee).toLocaleString('fr-FR') + ' FCFA'}</strong></p>
-            <h3 style="color: #c8a96e;">Total : ${Number(order.total).toLocaleString('fr-FR')} FCFA</h3>
+          <div style="margin-top:16px;text-align:right;">
+            <p style="color:#888;font-size:14px;margin:4px 0;">Sous-total : ${Number(order.subtotal).toLocaleString('fr-FR')} FCFA</p>
+            <p style="color:#888;font-size:14px;margin:4px 0;">
+              Livraison : ${Number(order.shippingFee) === 0 ? '<span style="color:#22c55e;">Gratuite</span>' : Number(order.shippingFee).toLocaleString('fr-FR') + ' FCFA'}
+            </p>
+            <p style="font-size:18px;font-weight:700;color:#c8a96e;margin:8px 0 0;">
+              Total : ${Number(order.total).toLocaleString('fr-FR')} FCFA
+            </p>
           </div>
 
-          <h3 style="margin-top: 28px;">Adresse de livraison</h3>
-          <p>
-            ${order.deliveryFullName}<br>
+          <h3 style="color:#333;border-bottom:2px solid #f0ebe3;padding-bottom:8px;margin-top:28px;">Adresse de livraison</h3>
+          <p style="color:#555;font-size:14px;line-height:1.8;margin:0;">
+            <strong>${order.deliveryFullName}</strong><br>
             ${order.deliveryDistrict}, ${order.deliveryCity}<br>
             ${order.deliveryAddress}<br>
+            ${order.deliveryLandmark ? `Repère : ${order.deliveryLandmark}<br>` : ''}
             📞 ${order.deliveryPhone}
           </p>
 
-          <div style="text-align: center; margin-top: 32px;">
-            <a href="${this.frontendUrl}/orders/${order.id}" style="background: #c8a96e; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+          <div style="text-align:center;margin-top:32px;">
+            <a href="${this.frontendUrl}/orders/${order.id}"
+               style="background:#c8a96e;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
               Suivre ma commande
             </a>
           </div>
-          <p style="color: #888; font-size: 13px; margin-top: 32px;">Merci de votre confiance — L'équipe Vannys Touch</p>
+          <p style="color:#999;font-size:13px;margin-top:32px;margin-bottom:0;">
+            Merci de votre confiance — L'équipe Vannys Touch
+          </p>
         </div>
       </body>
       </html>
     `;
-    await this.send(order.user.email, `✅ Commande ${order.reference} confirmée - Vannys Touch`, html);
+    await this.send(
+      order.user.email,
+      `✅ Commande ${order.reference} confirmée — Vannys Touch`,
+      html,
+    );
   }
 
   async sendAdminNewOrder(order: OrderWithItems): Promise<void> {
@@ -192,9 +210,12 @@ export class MailService {
       .map(
         (item) => `
         <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.productName}${item.variantColor ? ` (${item.variantColor}` : ''}${item.variantSize ? ` / ${item.variantSize})` : item.variantColor ? ')' : ''}</td>
-          <td style="padding: 8px; text-align:center; border-bottom: 1px solid #eee;">${item.quantity}</td>
-          <td style="padding: 8px; text-align:right; border-bottom: 1px solid #eee;">${Number(item.subtotal).toLocaleString('fr-FR')} FCFA</td>
+          <td style="padding:8px;border-bottom:1px solid #f0ebe3;font-size:14px;color:#444;">
+            ${item.productName}
+            ${item.variantColor ? ` <span style="color:#888;">(${item.variantColor}${item.variantSize ? '/' + item.variantSize : ''})</span>` : item.variantSize ? ` <span style="color:#888;">(${item.variantSize})</span>` : ''}
+          </td>
+          <td style="padding:8px;border-bottom:1px solid #f0ebe3;text-align:center;">${item.quantity}</td>
+          <td style="padding:8px;border-bottom:1px solid #f0ebe3;text-align:right;font-weight:600;">${Number(item.subtotal).toLocaleString('fr-FR')} FCFA</td>
         </tr>
       `,
       )
@@ -202,30 +223,42 @@ export class MailService {
 
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 620px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h2 style="color: #c8a96e;">🛍️ Nouvelle commande : ${order.reference}</h2>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:620px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h2 style="color:#c8a96e;margin-top:0;">🛍️ Nouvelle commande : ${order.reference}</h2>
 
-          <h3>Client</h3>
-          <p>${order.user.firstName} ${order.user.lastName} — ${order.user.email} — ${order.user.phone || '—'}</p>
-
-          <h3>Articles commandés</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead><tr style="background:#f5f0e8;">
-              <th style="padding:8px;text-align:left;">Produit</th>
-              <th style="padding:8px;text-align:center;">Qté</th>
-              <th style="padding:8px;text-align:right;">Sous-total</th>
-            </tr></thead>
-            <tbody>${itemsHtml}</tbody>
-          </table>
-          <div style="text-align:right; margin-top: 12px;">
-            <p>Livraison : <strong>${Number(order.shippingFee) === 0 ? 'Gratuite' : Number(order.shippingFee).toLocaleString('fr-FR') + ' FCFA'}</strong></p>
-            <h3 style="color:#c8a96e;">TOTAL : ${Number(order.total).toLocaleString('fr-FR')} FCFA</h3>
+          <div style="background:#f9f7f4;border-radius:8px;padding:16px;margin-bottom:24px;">
+            <h3 style="margin:0 0 8px;color:#333;font-size:14px;">CLIENT</h3>
+            <p style="margin:0;font-size:14px;color:#555;line-height:1.8;">
+              <strong>${order.user.firstName} ${order.user.lastName}</strong><br>
+              ${order.user.email}<br>
+              📞 ${order.user.phone ?? '—'}
+            </p>
           </div>
 
-          <h3>Livraison</h3>
-          <p>
+          <h3 style="color:#333;border-bottom:2px solid #f0ebe3;padding-bottom:8px;">Articles commandés</h3>
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f9f7f4;">
+                <th style="padding:8px;text-align:left;font-size:12px;color:#888;text-transform:uppercase;">Produit</th>
+                <th style="padding:8px;text-align:center;font-size:12px;color:#888;text-transform:uppercase;">Qté</th>
+                <th style="padding:8px;text-align:right;font-size:12px;color:#888;text-transform:uppercase;">Total</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+          <div style="text-align:right;margin-top:12px;">
+            <p style="color:#888;font-size:14px;margin:4px 0;">
+              Livraison : ${Number(order.shippingFee) === 0 ? 'Gratuite' : Number(order.shippingFee).toLocaleString('fr-FR') + ' FCFA'}
+            </p>
+            <p style="font-size:20px;font-weight:700;color:#c8a96e;margin:8px 0 0;">
+              TOTAL : ${Number(order.total).toLocaleString('fr-FR')} FCFA
+            </p>
+          </div>
+
+          <h3 style="color:#333;border-bottom:2px solid #f0ebe3;padding-bottom:8px;margin-top:28px;">Adresse de livraison</h3>
+          <p style="color:#555;font-size:14px;line-height:1.8;margin:0;">
             <strong>${order.deliveryFullName}</strong><br>
             📍 ${order.deliveryDistrict}, ${order.deliveryCity}<br>
             ${order.deliveryAddress}<br>
@@ -233,41 +266,59 @@ export class MailService {
             📞 ${order.deliveryPhone}
           </p>
 
-          ${order.notes ? `<h3>Notes</h3><p style="background:#fff8e1;padding:12px;border-radius:4px;">${order.notes}</p>` : ''}
+          ${order.notes ? `
+          <div style="background:#fff8e1;border-left:4px solid #c8a96e;padding:12px 16px;border-radius:0 8px 8px 0;margin-top:20px;">
+            <h4 style="margin:0 0 4px;font-size:13px;color:#888;">NOTES DU CLIENT</h4>
+            <p style="margin:0;font-size:14px;color:#555;">${order.notes}</p>
+          </div>` : ''}
 
-          <div style="text-align: center; margin-top: 28px;">
-            <a href="${this.frontendUrl}/admin/orders/${order.id}" style="background: #333; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">
-              Gérer la commande
+          <div style="text-align:center;margin-top:32px;">
+            <a href="${this.frontendUrl}/admin/orders/${order.id}"
+               style="background:#333;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+              Gérer la commande →
             </a>
           </div>
         </div>
       </body>
       </html>
     `;
-    await this.send(this.adminAddress, `🛍️ Nouvelle commande ${order.reference} — ${Number(order.total).toLocaleString('fr-FR')} FCFA`, html);
+    await this.send(
+      this.adminAddress,
+      `🛍️ Nouvelle commande ${order.reference} — ${Number(order.total).toLocaleString('fr-FR')} FCFA`,
+      html,
+    );
   }
 
   async sendOrderShipped(order: OrderWithItems): Promise<void> {
     const html = `
       <!DOCTYPE html>
-      <html>
-      <body style="font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px;">
-        <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 32px;">
-          <h1 style="color: #c8a96e;">Votre commande est en route 🚚</h1>
-          <p>Bonjour <strong>${order.user.firstName}</strong>,</p>
-          <p>Votre commande <strong>${order.reference}</strong> a été expédiée et est en cours de livraison.</p>
-          ${order.trackingNumber ? `<p>Numéro de suivi : <strong>${order.trackingNumber}</strong></p>` : ''}
-          <p>Adresse de livraison :<br>
-            <strong>${order.deliveryFullName}</strong><br>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h1 style="color:#c8a96e;margin-top:0;">Votre commande est en route 🚚</h1>
+          <p style="color:#444;">Bonjour <strong>${order.user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Votre commande <strong>${order.reference}</strong> a été expédiée et est en cours de livraison.
+          </p>
+          ${order.trackingNumber ? `
+          <div style="background:#f9f7f4;border-radius:8px;padding:16px;margin:20px 0;">
+            <p style="margin:0;font-size:14px;color:#555;">
+              Numéro de suivi : <strong>${order.trackingNumber}</strong>
+            </p>
+          </div>` : ''}
+          <p style="color:#555;font-size:14px;line-height:1.8;">
+            <strong>Adresse de livraison :</strong><br>
+            ${order.deliveryFullName}<br>
             ${order.deliveryDistrict}, ${order.deliveryCity}<br>
             ${order.deliveryAddress}
           </p>
-          <div style="text-align: center; margin-top: 32px;">
-            <a href="${this.frontendUrl}/orders/${order.id}" style="background: #c8a96e; color: white; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: bold;">
+          <div style="text-align:center;margin-top:32px;">
+            <a href="${this.frontendUrl}/orders/${order.id}"
+               style="background:#c8a96e;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
               Voir ma commande
             </a>
           </div>
-          <p style="color: #888; font-size: 13px; margin-top: 32px;">L'équipe Vannys Touch</p>
+          <p style="color:#999;font-size:13px;margin-top:32px;margin-bottom:0;">L'équipe Vannys Touch</p>
         </div>
       </body>
       </html>

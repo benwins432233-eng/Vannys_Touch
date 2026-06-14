@@ -1,48 +1,67 @@
-# ===============================
-# Stage 1 — Build
-# ===============================
-FROM node:20-alpine AS builder
+# =============================================================
+# VANNYS TOUCH — Backend Dockerfile
+# Multi-stage build : builder → runner
+# Compatible Render (Debian bookworm / OpenSSL 3.x)
+# =============================================================
+
+# ── Stage 1 : Builder ────────────────────────────────────────
+FROM node:20-bookworm-slim AS builder
+
+# Install OpenSSL (required for Prisma engine compilation)
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends openssl libssl-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Dépendances
-COPY package*.json ./
-COPY prisma ./prisma
+# Copy manifests first (layer cache)
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
 
-RUN npm install
+# Install ALL deps (including devDependencies needed for build)
+RUN npm ci --ignore-scripts
 
-# Génération Prisma
+# Generate Prisma client with correct binary targets
 RUN npx prisma generate
 
-# Code source
-COPY . .
+# Copy source and build
+COPY tsconfig.json nest-cli.json ./
+COPY src ./src/
 
-# Build TypeScript → dist/
 RUN npm run build
 
+# ── Stage 2 : Runner ─────────────────────────────────────────
+FROM node:20-bookworm-slim AS runner
 
-# ===============================
-# Stage 2 — Production
-# ===============================
-FROM node:20-alpine
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends openssl && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Dépendances prod uniquement
-COPY package*.json ./
-RUN npm install --omit=dev
+# Copy production deps manifest
+COPY package.json package-lock.json* ./
+COPY prisma ./prisma/
 
-# Prisma client
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+# Install production deps only
+RUN npm ci --omit=dev --ignore-scripts
 
-# Code compilé
+# Re-generate Prisma client in production image (same OS = correct binary)
+RUN npx prisma generate
+
+# Copy compiled output from builder
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
 
-# Render injecte $PORT
-EXPOSE 10000
+# Non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs && \
+    chown -R nestjs:nodejs /app
 
-CMD ["node", "dist/main.js"]
+USER nestjs
+
+EXPOSE 4000
+
+# Run migrations then start server
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]

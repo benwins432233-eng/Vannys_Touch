@@ -1,3 +1,8 @@
+/**
+ * Prisma seed script
+ * Run with: npm run prisma:seed
+ * Uses tsconfig.seed.json (excludes src/ rootDir restriction)
+ */
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
@@ -6,8 +11,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Admin user
-  const hashedPassword = await bcrypt.hash('Admin@123!', 10);
+  // ── Admin user ─────────────────────────────────────────────
+  const hashedPassword = await bcrypt.hash('Admin@123!', 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@vannystouch.com' },
     update: {},
@@ -20,31 +25,36 @@ async function main() {
       isActive: true,
     },
   });
-  console.log(`✅ Admin created: ${admin.email}`);
+  console.log(`✅ Admin: ${admin.email}`);
 
-  // Categories
-  const categories = [
-    { name: 'Robes', slug: 'robes', description: 'Collection de robes élégantes' },
-    { name: 'Tops', slug: 'tops', description: 'Tops et blouses tendance' },
-    { name: 'Pantalons', slug: 'pantalons', description: 'Pantalons et jeans' },
-    { name: 'Accessoires', slug: 'accessoires', description: 'Sacs, bijoux et accessoires' },
+  // ── Categories ─────────────────────────────────────────────
+  const categoriesData = [
+    { name: 'Robes', slug: 'robes', description: 'Collection de robes élégantes', sortOrder: 1 },
+    { name: 'Tops', slug: 'tops', description: 'Tops et blouses tendance', sortOrder: 2 },
+    { name: 'Pantalons', slug: 'pantalons', description: 'Pantalons et jeans', sortOrder: 3 },
+    { name: 'Ensembles', slug: 'ensembles', description: 'Tenues complètes coordonnées', sortOrder: 4 },
+    { name: 'Accessoires', slug: 'accessoires', description: 'Sacs, bijoux et accessoires', sortOrder: 5 },
   ];
 
-  for (const cat of categories) {
+  for (const cat of categoriesData) {
     await prisma.category.upsert({
       where: { slug: cat.slug },
       update: {},
       create: cat,
     });
   }
-  console.log(`✅ ${categories.length} categories created`);
+  console.log(`✅ ${categoriesData.length} categories created`);
 
   console.log('🎉 Seed completed!');
+  console.log('');
+  console.log('Default credentials:');
+  console.log('  Email    : admin@vannystouch.com');
+  console.log('  Password : Admin@123!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Seed failed:', e);
     process.exit(1);
   })
   .finally(async () => {

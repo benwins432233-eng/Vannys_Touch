@@ -1,0 +1,29 @@
+# ── Secrets (JAMAIS dans git) ──────────────────────────────
+**/.env
+**/.env.local
+**/.env.*.local
+
+# ── Dependencies ────────────────────────────────────────────
+**/node_modules/
+
+# ── Build outputs ────────────────────────────────────────────
+backend/dist/
+backend/dist-seed/
+frontend/dist/
+
+# ── Prisma generated (recréé à l'install) ──────────────────
+**/node_modules/.prisma/
+
+# ── Logs ───────────────────────────────────────────────────
+**/*.log
+**/npm-debug.log*
+
+# ── IDE ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+
+# ── OS ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

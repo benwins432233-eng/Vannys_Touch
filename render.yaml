@@ -1,0 +1,52 @@
+# =============================================================
+# VANNYS TOUCH — Render deployment config
+# Deploy via: https://dashboard.render.com → New → Blueprint
+# =============================================================
+
+services:
+  - type: web
+    name: vannys-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: API_PREFIX
+        value: api/v1
+      # Set these in the Render dashboard → Environment:
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 7d
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: vannys-touch/products
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Vannys Touch
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_ADMIN_ADDRESS
+        sync: false
+      - key: FREE_SHIPPING_THRESHOLD
+        value: 50000
+      - key: SHIPPING_FEE
+        value: 2500
+    healthCheckPath: /api/v1/health

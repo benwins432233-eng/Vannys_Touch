@@ -9,25 +9,29 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
+
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 4000);
   const prefix = config.get<string>('API_PREFIX', 'api/v1');
   const frontendUrl = config.get<string>('FRONTEND_URL', 'http://localhost:5173');
+  const nodeEnv = config.get<string>('NODE_ENV', 'development');
 
-  // Global prefix
+  // ── Global prefix ─────────────────────────────────────────
   app.setGlobalPrefix(prefix);
 
-  // CORS
+  // ── CORS ──────────────────────────────────────────────────
   app.enableCors({
-    origin: frontendUrl,
+    origin: nodeEnv === 'production' ? frontendUrl : true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
-  // Global pipes
+  // ── Validation pipe ───────────────────────────────────────
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -37,25 +41,30 @@ async function bootstrap() {
     }),
   );
 
-  // Global filters & interceptors
+  // ── Global filter & interceptors ──────────────────────────
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
-  // Swagger
-  if (config.get('NODE_ENV') !== 'production') {
+  // ── Swagger (dev only) ────────────────────────────────────
+  if (nodeEnv !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Vannys Touch API')
-      .setDescription('API e-commerce Vannys Touch')
+      .setDescription('API e-commerce Vannys Touch — NestJS + Prisma + PostgreSQL')
       .setVersion('1.0')
-      .addBearerAuth()
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);
-    SwaggerModule.setup('docs', app, document);
-    logger.log(`📚 Swagger available at: http://localhost:${port}/docs`);
+    SwaggerModule.setup('docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+    logger.log(`📚 Swagger: http://localhost:${port}/docs`);
   }
 
-  await app.listen(port);
-  logger.log(`🚀 Server running on http://localhost:${port}/${prefix}`);
+  // ── Graceful shutdown ─────────────────────────────────────
+  app.enableShutdownHooks();
+
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 Server running → http://localhost:${port}/${prefix} [${nodeEnv}]`);
 }
 
 bootstrap();
