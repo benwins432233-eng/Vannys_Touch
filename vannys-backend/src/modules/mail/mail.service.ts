@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Resend } from '@resend/node';
+import { Resend } from 'resend';
 import { Order, User } from '@prisma/client';
 
 type OrderWithItems = Order & {
