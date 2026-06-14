@@ -47,8 +47,8 @@ export function AdminCategoriesPage() {
     e.preventDefault();
     if (modal === 'create') {
       create(form);
-    } else if (modal && modal !== 'create') {
-      update({ id: (modal as Category).id, ...form });
+    } else if (typeof modal === 'object' && modal !== null) {
+       update({ id: modal.id, ...form });
     }
   };
 
