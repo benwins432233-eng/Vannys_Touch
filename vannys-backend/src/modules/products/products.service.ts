@@ -219,7 +219,7 @@ export class ProductsService {
   // ─── Private helpers ─────────────────────────────────────────
 
   private async uploadImages(productId: string, files: Express.Multer.File[]) {
-    const existingCount = await this.prisma.productImage.count({ where: { productId } });
+    const existingCount = await this.prisma.productImage.count({ where: { productId: BigInt(productId) } });
 
     for (let i = 0; i < files.length; i++) {
       try {
