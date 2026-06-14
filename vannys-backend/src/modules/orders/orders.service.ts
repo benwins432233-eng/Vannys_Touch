@@ -10,6 +10,16 @@ import { MailService } from '../mail/mail.service';
 import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
 import { OrderStatus, Role } from '@prisma/client';
 
+//Convertir les types string en bigInt
+const toId = (id: string | number | bigint): bigint => {
+  try {
+    return BigInt(id);
+  } catch {
+    throw new BadRequestException(`Invalid ID format: ${id}`);
+  }
+};
+
+
 @Injectable()
 export class OrdersService {
   private readonly freeShippingThreshold: number;
@@ -26,15 +36,16 @@ export class OrdersService {
 
   async findMyOrders(userId: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
+    const userIdBigInt = toId(userId);
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
-        where: { userId },
+        where: { userId: userIdBigInt },
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: { items: true },
       }),
-      this.prisma.order.count({ where: { userId } }),
+      this.prisma.order.count({ where: { userId: userIdBigInt } }),
     ]);
 
     return {
@@ -45,13 +56,13 @@ export class OrdersService {
 
   async findOne(id: string, userId: string, userRole: Role) {
     const order = await this.prisma.order.findUnique({
-      where: { id },
+      where: { id: toId(id) },
       include: { items: true, user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
     });
 
     if (!order) throw new NotFoundException('Order not found');
 
-    if (userRole !== Role.ADMIN && order.userId !== userId) {
+    if (userRole !== Role.ADMIN && order.userId !== toId(userId)) {
       throw new ForbiddenException('Access denied');
     }
 
@@ -93,7 +104,7 @@ export class OrdersService {
 
     const order = await this.prisma.order.create({
       data: {
-        userId,
+        userId: toId(userId),
         reference,
         notes: dto.notes || null,
         subtotal,
@@ -157,8 +168,9 @@ export class OrdersService {
   }
 
   async updateStatus(id: string, dto: UpdateOrderStatusDto) {
+    const orderId = toId(id);
     const order = await this.prisma.order.findUnique({
-      where: { id },
+      where: { id: orderId },
       include: {
         items: true,
         user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
@@ -169,7 +181,7 @@ export class OrdersService {
     const prevStatus = order.status;
 
     const updated = await this.prisma.order.update({
-      where: { id },
+      where: { id: orderId },
       data: {
         status: dto.status,
         ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }),

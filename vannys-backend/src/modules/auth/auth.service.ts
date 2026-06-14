@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -11,6 +12,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { RegisterDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 import * as bcrypt from 'bcryptjs';
+
+//Convertir les types string en bigInt
+const toId = (id: string | number | bigint): bigint => {
+  try {
+    return BigInt(id);
+  } catch {
+    throw new BadRequestException(`Invalid ID format: ${id}`);
+  }
+};
+
 
 @Injectable()
 export class AuthService {
@@ -66,7 +77,7 @@ export class AuthService {
 
   async logout(userId: string) {
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: toId(userId) },
       data: { refreshToken: null },
     });
     return { message: 'Logged out successfully' };
@@ -78,7 +89,7 @@ export class AuthService {
         secret: this.config.getOrThrow('JWT_REFRESH_SECRET'),
       });
 
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.prisma.user.findUnique({ where: { id: BigInt(payload.sub) } });
       if (!user || !user.refreshToken) throw new Error();
 
       const matches = await bcrypt.compare(refreshToken, user.refreshToken);
@@ -109,7 +120,7 @@ export class AuthService {
   }
 
   async getMe(userId: string) {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: toId(userId) } });
     const { password, refreshToken, ...safeUser } = user;
     return safeUser;
   }
@@ -117,7 +128,7 @@ export class AuthService {
   // ─── Private helpers ────────────────────────────────────────
 
   private async generateTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+    const payload = { sub: userId.toString(), email, role };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(payload, {

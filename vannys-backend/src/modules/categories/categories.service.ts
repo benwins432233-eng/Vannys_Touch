@@ -1,7 +1,17 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import slugify from 'slugify';
+
+//Convertir les types string en bigInt
+const toId = (id: string | number | bigint): bigint => {
+  try {
+    return BigInt(id);
+  } catch {
+    throw new BadRequestException(`Invalid ID format: ${id}`);
+  }
+};
+
 
 @Injectable()
 export class CategoriesService {
@@ -40,6 +50,7 @@ export class CategoriesService {
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
+    const categoryId = toId(id);
     await this.findById(id);
 
     const data: any = { ...dto };
@@ -47,21 +58,22 @@ export class CategoriesService {
       data.slug = slugify(dto.name, { lower: true, strict: true });
     }
 
-    return this.prisma.category.update({ where: { id }, data });
+    return this.prisma.category.update({ where: { id: categoryId }, data });
   }
 
   async remove(id: string) {
+    const categoryId = toId(id);
     await this.findById(id);
-    const count = await this.prisma.product.count({ where: { categoryId: id } });
+    const count = await this.prisma.product.count({ where: { categoryId: categoryId } });
     if (count > 0) {
       throw new ConflictException(`Cannot delete category with ${count} products`);
     }
-    await this.prisma.category.delete({ where: { id } });
+    await this.prisma.category.delete({ where: { id: categoryId } });
     return { message: 'Category deleted' };
   }
 
   private async findById(id: string) {
-    const category = await this.prisma.category.findUnique({ where: { id } });
+    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
     if (!category) throw new NotFoundException('Category not found');
     return category;
   }

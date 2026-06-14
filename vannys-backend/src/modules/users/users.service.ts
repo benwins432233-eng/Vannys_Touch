@@ -2,6 +2,16 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateUserDto, UpdateUserRoleDto } from './dto/user.dto';
 
+//Convertir les types string en bigInt
+const toId = (id: string | number | bigint): bigint => {
+  try {
+    return BigInt(id);
+  } catch {
+    throw new BadRequestException(`Invalid ID format: ${id}`);
+  }
+};
+
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}

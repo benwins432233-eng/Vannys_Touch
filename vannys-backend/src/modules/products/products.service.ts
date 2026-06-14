@@ -9,6 +9,15 @@ import { CreateProductDto, UpdateProductDto, ProductFilterDto } from './dto/prod
 import slugify from 'slugify';
 import { v4 as uuidv4 } from 'uuid';
 
+//Convertir les types string en bigInt
+const toId = (id: string | number | bigint): bigint => {
+  try {
+    return BigInt(id);
+  } catch {
+    throw new BadRequestException(`Invalid ID format: ${id}`);
+  }
+};
+
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
