@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { 
+  Injectable, 
+  NotFoundException, 
+  BadRequestException, 
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateUserDto, UpdateUserRoleDto } from './dto/user.dto';
 
@@ -46,7 +50,7 @@ export class UsersService {
   }
 
   async findOne(id: string) {
-    const numericId = BigInt(id);
+    const numericId = toId(id);
     const user = await this.prisma.user.findUnique({
       where: { id: numericId },
       select: {
@@ -74,7 +78,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto) {
     await this.findOne(id);
     return this.prisma.user.update({
-      where: { id: BigInt(id) },
+      where: { id: toId(id) },
       data: dto,
       select: {
         id: true, firstName: true, lastName: true, email: true,
@@ -84,18 +88,20 @@ export class UsersService {
   }
 
   async updateRole(id: string, dto: UpdateUserRoleDto) {
-    await this.findOne(id);
+    const numericUpdateId = toId(id);
+    await this.findOne(numericUpdateId);
     return this.prisma.user.update({
-      where: { id: BigInt(id) },
+      where: { id: numericUpdateId },
       data: { role: dto.role },
       select: { id: true, email: true, role: true },
     });
   }
 
   async toggleActive(id: string) {
-    const user = await this.findOne(id);
+    const numericToggleId = toId(id);
+    const user = await this.findOne(numericToggleId);
     return this.prisma.user.update({
-      where: { id: BigInt(id) },
+      where: { id: numericToggleId },
       data: { isActive: !user.isActive },
       select: { id: true, email: true, isActive: true },
     });

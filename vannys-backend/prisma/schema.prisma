@@ -272,7 +272,3 @@ enum orders_payment_status {
   failed
 }
 
-enum Role {
-  user
-  admin
-}

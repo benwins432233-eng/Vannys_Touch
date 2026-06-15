@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
@@ -94,10 +95,9 @@ export class ProductsService {
     return product;
   }
 
-  async findById(id: string) {
-    const numericId = BigInt(id);
+  async findById(id: string | bigint) {
     const product = await this.prisma.product.findUnique({
-      where: { id: numericId },
+      where: { id: toId(id) },
       include: { category: true, images: { orderBy: { sortOrder: 'asc' } }, variants: true },
     });
     if (!product) throw new NotFoundException('Product not found');
@@ -114,7 +114,7 @@ export class ProductsService {
         description: dto.description,
         price: dto.price,
         originalPrice: dto.originalPrice || null,
-        categoryId: dto.categoryId,
+        categoryId: toId(dto.categoryId),
         badge: dto.badge || null,
         inStock: dto.inStock ?? true,
         isFeatured: dto.isFeatured ?? false,
@@ -130,14 +130,14 @@ export class ProductsService {
     if (dto.colors?.length) {
       await this.prisma.productVariant.createMany({
         data: dto.colors.filter(Boolean).map((v) => ({
-          productId: product.id, type: 'COLOR', value: v.trim(),
+          productId: product.id, type: 'color', value: v.trim(),
         })),
       });
     }
     if (dto.sizes?.length) {
       await this.prisma.productVariant.createMany({
         data: dto.sizes.filter(Boolean).map((v) => ({
-          productId: product.id, type: 'SIZE', value: v.trim(),
+          productId: product.id, type: 'size', value: v.trim(),
         })),
       });
     }
@@ -146,7 +146,8 @@ export class ProductsService {
   }
 
   async update(id: string, dto: UpdateProductDto, imageFiles?: Express.Multer.File[]) {
-    await this.findById(id);
+    const numericId = toId(id);
+    await this.findById(numericId);
 
     const data: any = {};
     const fields = ['name', 'description', 'price', 'originalPrice', 'categoryId', 'badge', 'inStock', 'isFeatured', 'isActive'];
@@ -157,42 +158,43 @@ export class ProductsService {
       data.slug = await this.generateUniqueSlug(dto.name, id);
     }
 
-    await this.prisma.product.update({ where: { id }, data });
+    await this.prisma.product.update({ where: { id: numericId }, data });
 
     if (imageFiles?.length) {
-      await this.uploadImages(id, imageFiles);
+      await this.uploadImages(numericId, imageFiles);
     }
 
     // Replace variants if provided
     if (dto.colors !== undefined || dto.sizes !== undefined) {
-      await this.prisma.productVariant.deleteMany({ where: { productId: id } });
+      await this.prisma.productVariant.deleteMany({ where: { productId: numericId } });
 
       const newVariants = [
-        ...(dto.colors || []).filter(Boolean).map((v) => ({ productId: id, type: 'COLOR' as const, value: v.trim() })),
-        ...(dto.sizes || []).filter(Boolean).map((v) => ({ productId: id, type: 'SIZE' as const, value: v.trim() })),
+        ...(dto.colors || []).filter(Boolean).map((v) => ({ productId: numericId, type: 'color' as const, value: v.trim() })),
+        ...(dto.sizes || []).filter(Boolean).map((v) => ({ productId: numericId, type: 'size' as const, value: v.trim() })),
       ];
       if (newVariants.length) {
         await this.prisma.productVariant.createMany({ data: newVariants });
       }
     }
 
-    return this.findById(id);
+    return this.findById(numericId);
   }
 
   async remove(id: string) {
-    const product = await this.findById(id);
+    const numericId = toId(id);
+    const product = await this.findById(numericId);
 
     // Delete Cloudinary images
     for (const image of product.images) {
       await this.cloudinary.deleteByPublicId(image.cloudinaryId).catch(() => null);
     }
 
-    await this.prisma.product.delete({ where: { id } });
+    await this.prisma.product.delete({ where: { id: numericId } });
     return { message: 'Product deleted' };
   }
 
   async deleteImage(imageId: string) {
-    const numericImageId = BigInt(imageId);
+    const numericImageId = toId(imageId);
     const image = await this.prisma.productImage.findUnique({ where: { id: numericImageId } });
     if (!image) throw new NotFoundException('Image not found');
 
@@ -212,7 +214,7 @@ export class ProductsService {
   }
 
   async setPrimaryImage(imageId: string) {
-    const numericBingImageId = BigInt(imageId);
+    const numericBingImageId = toId(imageId);
     const image = await this.prisma.productImage.findUnique({ where: { id: numericBingImageId } });
     if (!image) throw new NotFoundException('Image not found');
 
@@ -228,7 +230,7 @@ export class ProductsService {
   // ─── Private helpers ─────────────────────────────────────────
 
   private async uploadImages(productId: string, files: Express.Multer.File[]) {
-    const existingCount = await this.prisma.productImage.count({ where: { productId: BigInt(productId) } });
+    const existingCount = await this.prisma.productImage.count({ where: { productId } });
 
     for (let i = 0; i < files.length; i++) {
       try {
@@ -257,7 +259,7 @@ export class ProductsService {
 
     while (true) {
       const existing = await this.prisma.product.findUnique({ where: { slug } });
-      const excludeIdBigInt = excludeId ? BigInt(excludeId) : undefined;
+      const excludeIdBigInt = excludeId ? toId(excludeId) : undefined;
       if (!existing || existing.id === excludeIdBigInt) break;
       slug = `${base}-${counter++}`;
     }
