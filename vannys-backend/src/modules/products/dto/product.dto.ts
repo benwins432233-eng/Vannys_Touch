@@ -10,6 +10,15 @@ import {
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
+// Helper : accepte un tableau déjà formé OU une string CSV "Rouge, Bleu" → ['Rouge', 'Bleu']
+// Nécessaire car FormData envoie tout en string, même les tableaux
+const toStringArray = ({ value }: { value: any }): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((v: string) => v.trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(',').map((v) => v.trim()).filter(Boolean);
+  return [];
+};
+
 export class CreateProductDto {
   @IsString()
   @IsNotEmpty()
@@ -56,11 +65,14 @@ export class CreateProductDto {
   @IsOptional()
   isFeatured?: boolean = false;
 
+  // Accepte "Rouge, Bleu, Vert" (FormData) ou ['Rouge','Bleu','Vert'] (JSON)
+  @Transform(toStringArray)
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   colors?: string[];
 
+  @Transform(toStringArray)
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
@@ -118,11 +130,13 @@ export class UpdateProductDto {
   @IsOptional()
   isActive?: boolean;
 
+  @Transform(toStringArray)
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   colors?: string[];
 
+  @Transform(toStringArray)
   @IsArray()
   @IsString({ each: true })
   @IsOptional()

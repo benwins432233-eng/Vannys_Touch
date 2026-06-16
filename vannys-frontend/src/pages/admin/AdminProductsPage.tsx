@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, Search, Loader2, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import toast from 'react-hot-toast';
-import { apiClient } from '@/api/client';
 import { useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/use-products';
+import { apiClient } from '@/api/client';
 import { formatPrice } from '@/utils';
 import type { Product } from '@/types';
 
@@ -37,12 +36,45 @@ export function AdminProductsPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const fd = new FormData();
+
+    // Champs texte simples
+    const textFields = ['name', 'description', 'badge', 'categoryId'] as const;
+    textFields.forEach((field) => {
+      const el = form.elements.namedItem(field) as HTMLInputElement | null;
+      if (el?.value) fd.append(field, el.value);
+    });
+
+    // Champs numériques
+    const priceEl = form.elements.namedItem('price') as HTMLInputElement | null;
+    const originalPriceEl = form.elements.namedItem('originalPrice') as HTMLInputElement | null;
+    if (priceEl?.value) fd.append('price', priceEl.value);
+    if (originalPriceEl?.value) fd.append('originalPrice', originalPriceEl.value);
+
+    // Checkboxes
+    const inStockEl = form.elements.namedItem('inStock') as HTMLInputElement | null;
+    const isFeaturedEl = form.elements.namedItem('isFeatured') as HTMLInputElement | null;
+    fd.append('inStock', inStockEl?.checked ? 'true' : 'false');
+    fd.append('isFeatured', isFeaturedEl?.checked ? 'true' : 'false');
+
+    // Colors et sizes : envoyés comme string CSV
+    // Le backend les splitte avec le Transform toStringArray
+    const colorsEl = form.elements.namedItem('colors') as HTMLInputElement | null;
+    const sizesEl = form.elements.namedItem('sizes') as HTMLInputElement | null;
+    if (colorsEl?.value.trim()) fd.append('colors', colorsEl.value.trim());
+    if (sizesEl?.value.trim()) fd.append('sizes', sizesEl.value.trim());
+
+    // Images
+    const imagesEl = form.elements.namedItem('images') as HTMLInputElement | null;
+    if (imagesEl?.files) {
+      Array.from(imagesEl.files).forEach((file) => fd.append('images', file));
+    }
 
     if (modal === 'create') {
       create(fd, { onSuccess: () => setModal(null) });
     } else if (modal) {
-      update({ id: modal.id, data: fd }, { onSuccess: () => setModal(null) });
+      update({ id: (modal as Product).id, data: fd }, { onSuccess: () => setModal(null) });
     }
   };
 
@@ -152,41 +184,47 @@ export function AdminProductsPage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="label">Nom *</label>
                 <input name="name" required defaultValue={editing?.name} className="input" />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Prix (FCFA) *</label>
-                  <input name="price" type="number" required defaultValue={editing?.price} className="input" />
+                  <input name="price" type="number" required defaultValue={Number(editing?.price) || ''} className="input" />
                 </div>
                 <div>
                   <label className="label">Prix original (barré)</label>
-                  <input name="originalPrice" type="number" defaultValue={editing?.originalPrice ?? ''} className="input" />
+                  <input name="originalPrice" type="number" defaultValue={Number(editing?.originalPrice) || ''} className="input" />
                 </div>
               </div>
+
               <div>
                 <label className="label">Catégorie *</label>
-                <select name="categoryId" required defaultValue={editing?.category?.id} className="input">
+                <select name="categoryId" required defaultValue={editing?.category?.id ?? ''} className="input">
                   <option value="">Sélectionner...</option>
                   {(categories as any[])?.map((c: any) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="label">Description</label>
                 <textarea name="description" rows={3} defaultValue={editing?.description ?? ''} className="input resize-none" />
               </div>
+
               <div>
-                <label className="label">Badge (ex: Nouveau, -20%)</label>
+                <label className="label">Badge (ex : Nouveau, Promo)</label>
                 <input name="badge" defaultValue={editing?.badge ?? ''} className="input" />
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="label">Couleurs (virgule séparées)</label>
+                  <label className="label">Couleurs (séparées par des virgules)</label>
                   <input
                     name="colors"
                     defaultValue={editing?.variants.filter(v => v.type === 'COLOR').map(v => v.value).join(', ')}
@@ -195,7 +233,7 @@ export function AdminProductsPage() {
                   />
                 </div>
                 <div>
-                  <label className="label">Tailles (virgule séparées)</label>
+                  <label className="label">Tailles (séparées par des virgules)</label>
                   <input
                     name="sizes"
                     defaultValue={editing?.variants.filter(v => v.type === 'SIZE').map(v => v.value).join(', ')}
@@ -204,18 +242,34 @@ export function AdminProductsPage() {
                   />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" name="inStock" id="inStock" defaultChecked={editing?.inStock ?? true} className="rounded" />
+                  <input
+                    type="checkbox"
+                    name="inStock"
+                    id="inStock"
+                    defaultChecked={editing?.inStock ?? true}
+                    className="rounded"
+                  />
                   <label htmlFor="inStock" className="text-sm font-medium text-gray-700">En stock</label>
                 </div>
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" name="isFeatured" id="isFeatured" defaultChecked={editing?.isFeatured ?? false} className="rounded" />
+                  <input
+                    type="checkbox"
+                    name="isFeatured"
+                    id="isFeatured"
+                    defaultChecked={editing?.isFeatured ?? false}
+                    className="rounded"
+                  />
                   <label htmlFor="isFeatured" className="text-sm font-medium text-gray-700">Coup de cœur</label>
                 </div>
               </div>
+
               <div>
-                <label className="label">Images{!editing ? ' *' : ' (ajouter de nouvelles)'}</label>
+                <label className="label">
+                  Images{!editing ? ' *' : ' (laisser vide pour garder les actuelles)'}
+                </label>
                 <input type="file" name="images" multiple accept="image/*" className="input py-2 text-sm" />
                 {editing?.images && editing.images.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
@@ -229,7 +283,10 @@ export function AdminProductsPage() {
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={() => setModal(null)} className="btn-ghost flex-1">Annuler</button>
                 <button type="submit" disabled={isCreating || isUpdating} className="btn-primary flex-1">
-                  {(isCreating || isUpdating) ? <Loader2 className="w-4 h-4 animate-spin" /> : editing ? 'Enregistrer' : 'Créer'}
+                  {(isCreating || isUpdating)
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : editing ? 'Enregistrer' : 'Créer le produit'
+                  }
                 </button>
               </div>
             </form>
