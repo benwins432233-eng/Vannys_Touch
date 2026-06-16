@@ -3,9 +3,9 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
+  IsNumberString,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   Min,
   ValidateNested,
@@ -14,7 +14,9 @@ import { Type } from 'class-transformer';
 import { orders_status } from '@prisma/client';
 
 export class OrderItemDto {
-  @IsUUID()
+  // Les IDs MySQL sont des BigInt sérialisés en string numérique (ex: "123456")
+  // @IsUUID() est incorrect ici — on valide un string numérique à la place
+  @IsNumberString()
   @IsNotEmpty()
   productId: string;
 
@@ -38,7 +40,6 @@ export class CreateOrderDto {
   @IsOptional()
   notes?: string;
 
-  // Delivery info
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
