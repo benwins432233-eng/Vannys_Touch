@@ -150,12 +150,22 @@ export class ProductsService {
     await this.findById(numericId);
 
     const data: any = {};
-    const fields = ['name', 'description', 'price', 'originalPrice', 'categoryId', 'badge', 'inStock', 'isFeatured', 'isActive'];
+    const fields = [
+      'name', 
+      'description', 
+      'price', 
+      'originalPrice', 
+      'categoryId', 
+      'badge', 
+      'inStock', 
+      'isFeatured', 
+      'isActive'
+    ];
     for (const f of fields) {
       if (dto[f] !== undefined) data[f] = dto[f] === '' ? null : dto[f];
     }
     if (dto.name) {
-      data.slug = await this.generateUniqueSlug(dto.name, id);
+      data.slug = await this.generateUniqueSlug(dto.name, numericId);
     }
 
     await this.prisma.product.update({ where: { id: numericId }, data });
@@ -229,7 +239,7 @@ export class ProductsService {
 
   // ─── Private helpers ─────────────────────────────────────────
 
-  private async uploadImages(productId: string, files: Express.Multer.File[]) {
+  private async uploadImages(productId: bigint, files: Express.Multer.File[]) {
     const existingCount = await this.prisma.productImage.count({ where: { productId } });
 
     for (let i = 0; i < files.length; i++) {
@@ -252,15 +262,14 @@ export class ProductsService {
     }
   }
 
-  private async generateUniqueSlug(name: string, excludeId?: string): Promise<string> {
+  private async generateUniqueSlug(name: string, excludeId?: bigint): Promise<string> {
     const base = slugify(name, { lower: true, strict: true });
     let slug = base;
     let counter = 1;
 
     while (true) {
       const existing = await this.prisma.product.findUnique({ where: { slug } });
-      const excludeIdBigInt = excludeId ? toId(excludeId) : undefined;
-      if (!existing || existing.id === excludeIdBigInt) break;
+      if (!existing || existing.id === excludeId) break;
       slug = `${base}-${counter++}`;
     }
 

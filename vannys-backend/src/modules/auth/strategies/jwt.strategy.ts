@@ -24,8 +24,9 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   }
 
   async validate(payload: JwtPayload) {
+    // payload.sub est un string (JWT) — Prisma attend un BigInt (schema MySQL)
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+      where: { id: BigInt(payload.sub) },
     });
 
     if (!user || !user.isActive) {

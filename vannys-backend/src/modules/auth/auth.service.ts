@@ -13,7 +13,7 @@ import { MailService } from '../mail/mail.service';
 import { RegisterDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 import * as bcrypt from 'bcryptjs';
 
-//Convertir les types string en bigInt
+// Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
   try {
     return BigInt(id);
@@ -21,7 +21,6 @@ const toId = (id: string | number | bigint): bigint => {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
 };
-
 
 @Injectable()
 export class AuthService {
@@ -47,10 +46,10 @@ export class AuthService {
       },
     });
 
+    // user.id est BigInt — on le passe directement aux helpers privés
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
-    // Non-blocking emails
     this.mail.sendWelcome(user).catch(() => null);
     this.mail.sendAdminNewUser(user).catch(() => null);
 
@@ -125,9 +124,10 @@ export class AuthService {
     return safeUser;
   }
 
-  // ─── Private helpers ────────────────────────────────────────
+  // ─── Private helpers ──────────────────────────────────────────
 
-  private async generateTokens(userId: string, email: string, role: string) {
+  // userId est BigInt (vient directement de Prisma) — on le convertit en string pour le JWT
+  private async generateTokens(userId: bigint, email: string, role: string) {
     const payload = { sub: userId.toString(), email, role };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -144,7 +144,8 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async saveRefreshToken(userId: string, token: string) {
+  // userId est BigInt (vient directement de Prisma)
+  private async saveRefreshToken(userId: bigint, token: string) {
     const hashed = await bcrypt.hash(token, 10);
     await this.prisma.user.update({
       where: { id: userId },

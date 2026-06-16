@@ -1,12 +1,12 @@
-import { 
-  Injectable, 
-  NotFoundException, 
-  BadRequestException, 
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateUserDto, UpdateUserRoleDto } from './dto/user.dto';
 
-//Convertir les types string en bigInt
+// Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
   try {
     return BigInt(id);
@@ -14,7 +14,6 @@ const toId = (id: string | number | bigint): bigint => {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
 };
-
 
 @Injectable()
 export class UsersService {
@@ -49,7 +48,8 @@ export class UsersService {
     };
   }
 
-  async findOne(id: string) {
+  // Accepte string | bigint pour éviter la double conversion dans updateRole et toggleActive
+  async findOne(id: string | bigint) {
     const numericId = toId(id);
     const user = await this.prisma.user.findUnique({
       where: { id: numericId },
@@ -88,20 +88,20 @@ export class UsersService {
   }
 
   async updateRole(id: string, dto: UpdateUserRoleDto) {
-    const numericUpdateId = toId(id);
-    await this.findOne(numericUpdateId);
+    const numericId = toId(id);
+    await this.findOne(numericId); // passe bigint — OK car findOne accepte string | bigint
     return this.prisma.user.update({
-      where: { id: numericUpdateId },
+      where: { id: numericId },
       data: { role: dto.role },
       select: { id: true, email: true, role: true },
     });
   }
 
   async toggleActive(id: string) {
-    const numericToggleId = toId(id);
-    const user = await this.findOne(numericToggleId);
+    const numericId = toId(id);
+    const user = await this.findOne(numericId); // passe bigint — OK car findOne accepte string | bigint
     return this.prisma.user.update({
-      where: { id: numericToggleId },
+      where: { id: numericId },
       data: { isActive: !user.isActive },
       select: { id: true, email: true, isActive: true },
     });

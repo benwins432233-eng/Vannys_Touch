@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 import slugify from 'slugify';
 
-//Convertir les types string en bigInt
+// Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
   try {
     return BigInt(id);
@@ -11,7 +11,6 @@ const toId = (id: string | number | bigint): bigint => {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
 };
-
 
 @Injectable()
 export class CategoriesService {
@@ -50,30 +49,33 @@ export class CategoriesService {
   }
 
   async update(id: string, dto: UpdateCategoryDto) {
-    const categoryId = toId(id);
-    await this.findById(id);
+    const numericId = toId(id);
+    await this.findById(numericId);
 
     const data: any = { ...dto };
     if (dto.name) {
       data.slug = slugify(dto.name, { lower: true, strict: true });
     }
 
-    return this.prisma.category.update({ where: { id: categoryId }, data });
+    return this.prisma.category.update({ where: { id: numericId }, data });
   }
 
   async remove(id: string) {
-    const categoryId = toId(id);
-    await this.findById(id);
-    const count = await this.prisma.product.count({ where: { categoryId: categoryId } });
+    const numericId = toId(id);
+    await this.findById(numericId);
+
+    const count = await this.prisma.product.count({ where: { categoryId: numericId } });
     if (count > 0) {
       throw new ConflictException(`Cannot delete category with ${count} products`);
     }
-    await this.prisma.category.delete({ where: { id: categoryId } });
+
+    await this.prisma.category.delete({ where: { id: numericId } });
     return { message: 'Category deleted' };
   }
 
-  private async findById(id: string) {
-    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+  // Prend directement un BigInt pour éviter la double conversion
+  private async findById(id: bigint) {
+    const category = await this.prisma.category.findUnique({ where: { id } });
     if (!category) throw new NotFoundException('Category not found');
     return category;
   }

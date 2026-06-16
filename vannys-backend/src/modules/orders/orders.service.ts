@@ -8,9 +8,9 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
-import { OrderStatus, Role } from '@prisma/client';
+import { orders_status, users_role } from '@prisma/client';
 
-//Convertir les types string en bigInt
+// Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
   try {
     return BigInt(id);
@@ -18,7 +18,6 @@ const toId = (id: string | number | bigint): bigint => {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
 };
-
 
 @Injectable()
 export class OrdersService {
@@ -37,6 +36,7 @@ export class OrdersService {
   async findMyOrders(userId: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
     const userIdBigInt = toId(userId);
+
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({
         where: { userId: userIdBigInt },
@@ -54,15 +54,19 @@ export class OrdersService {
     };
   }
 
-  async findOne(id: string, userId: string, userRole: Role) {
+  async findOne(id: string, userId: string, userRole: users_role) {
     const order = await this.prisma.order.findUnique({
       where: { id: toId(id) },
-      include: { items: true, user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } } },
+      include: {
+        items: true,
+        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+      },
     });
 
     if (!order) throw new NotFoundException('Order not found');
 
-    if (userRole !== Role.ADMIN && order.userId !== toId(userId)) {
+    // users_role.admin est la valeur de l'enum MySQL (minuscule)
+    if (userRole !== users_role.admin && order.userId !== toId(userId)) {
       throw new ForbiddenException('Access denied');
     }
 
@@ -76,8 +80,9 @@ export class OrdersService {
     const orderItems: any[] = [];
 
     for (const item of dto.items) {
+      // Inclure les images dans la requête produit
       const product = await this.prisma.product.findFirst({
-        where: { id: item.productId, isActive: true },
+        where: { id: toId(item.productId), isActive: true },
         include: { images: { where: { isPrimary: true }, take: 1 } },
       });
 
@@ -110,6 +115,9 @@ export class OrdersService {
         subtotal,
         shippingFee: shipping,
         total: subtotal + shipping,
+        // Champs obligatoires du schéma MySQL existant
+        payment_method: 'MTN',
+        phone_number: dto.deliveryPhone,
         deliveryFullName: dto.deliveryFullName,
         deliveryPhone: dto.deliveryPhone,
         deliveryCity: dto.deliveryCity,
@@ -124,7 +132,6 @@ export class OrdersService {
       },
     });
 
-    // Non-blocking email notifications
     const orderWithUser = { ...order, user: order.user as any };
     this.mail.sendOrderConfirmed(orderWithUser as any).catch(() => null);
     this.mail.sendAdminNewOrder(orderWithUser as any).catch(() => null);
@@ -139,11 +146,13 @@ export class OrdersService {
     const where: any = {};
     if (status) where.status = status;
     if (search) {
+      // MySQL ne supporte pas mode:'insensitive' (c'est PostgreSQL)
+      // MySQL est insensible à la casse par défaut sur les colonnes VARCHAR
       where.OR = [
-        { reference: { contains: search, mode: 'insensitive' } },
-        { user: { firstName: { contains: search, mode: 'insensitive' } } },
-        { user: { lastName: { contains: search, mode: 'insensitive' } } },
-        { user: { email: { contains: search, mode: 'insensitive' } } },
+        { reference: { contains: search } },
+        { user: { firstName: { contains: search } } },
+        { user: { lastName: { contains: search } } },
+        { user: { email: { contains: search } } },
       ];
     }
 
@@ -169,6 +178,7 @@ export class OrdersService {
 
   async updateStatus(id: string, dto: UpdateOrderStatusDto) {
     const orderId = toId(id);
+
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
@@ -192,8 +202,8 @@ export class OrdersService {
       },
     });
 
-    // Send "shipped" email only once
-    if (dto.status === OrderStatus.SHIPPED && prevStatus !== OrderStatus.SHIPPED) {
+    // Envoyer l'email d'expédition une seule fois (le schéma n'a pas "shipped" — on utilise "processing")
+    if (dto.status === orders_status.processing && prevStatus !== orders_status.processing) {
       this.mail.sendOrderShipped(updated as any).catch(() => null);
     }
 
@@ -208,7 +218,7 @@ export class OrdersService {
         _count: { status: true },
       }),
       this.prisma.order.aggregate({
-        where: { status: { notIn: [OrderStatus.CANCELLED] } },
+        where: { status: { notIn: [orders_status.cancelled] } },
         _sum: { total: true },
       }),
     ]);
@@ -220,7 +230,7 @@ export class OrdersService {
     };
   }
 
-  // ─── Private helpers ─────────────────────────────────────────
+  // ─── Private helpers ──────────────────────────────────────────
 
   private async generateReference(): Promise<string> {
     const count = await this.prisma.order.count();

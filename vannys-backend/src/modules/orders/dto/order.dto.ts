@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { OrderStatus } from '@prisma/client';
+import { orders_status } from '@prisma/client';
 
 export class OrderItemDto {
   @IsUUID()
@@ -75,8 +75,8 @@ export class CreateOrderDto {
 }
 
 export class UpdateOrderStatusDto {
-  @IsEnum(OrderStatus)
-  status: OrderStatus;
+  @IsEnum(orders_status)
+  status: orders_status;
 
   @IsString()
   @IsOptional()
@@ -85,9 +85,9 @@ export class UpdateOrderStatusDto {
 }
 
 export class OrderFilterDto {
-  @IsEnum(OrderStatus)
+  @IsEnum(orders_status)
   @IsOptional()
-  status?: OrderStatus;
+  status?: orders_status;
 
   @IsString()
   @IsOptional()
