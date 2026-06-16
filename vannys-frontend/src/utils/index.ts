@@ -4,16 +4,37 @@ export const formatPrice = (value: number | string): string => {
   return Number(value).toLocaleString('fr-FR') + ' FCFA';
 };
 
-export const formatDate = (date: string): string => {
-  return new Date(date).toLocaleDateString('fr-FR', {
+// Convertit n'importe quel format de date en objet Date valide :
+// - string ISO "2026-06-16T09:13:11.717Z"
+// - timestamp numérique en ms : 1718531591717
+// - timestamp numérique en s  : 1718531591  (Unix < 10^10)
+// - bigint sérialisé en string : "1718531591717"
+// - objet Date natif
+const toDate = (date: string | number | Date): Date => {
+  if (date instanceof Date) return date;
+
+  const num = Number(date);
+  if (!isNaN(num) && num > 0) {
+    // Timestamp en secondes (Unix standard) → convertir en ms
+    const ms = num < 1e10 ? num * 1000 : num;
+    return new Date(ms);
+  }
+
+  // String ISO ou autre format reconnu par Date
+  const d = new Date(date as string);
+  return isNaN(d.getTime()) ? new Date(0) : d;
+};
+
+export const formatDate = (date: string | number | Date): string => {
+  return toDate(date).toLocaleDateString('fr-FR', {
     day: '2-digit',
     month: 'long',
     year: 'numeric',
   });
 };
 
-export const formatDateTime = (date: string): string => {
-  return new Date(date).toLocaleString('fr-FR', {
+export const formatDateTime = (date: string | number | Date): string => {
+  return toDate(date).toLocaleString('fr-FR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
