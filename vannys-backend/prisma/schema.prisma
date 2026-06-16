@@ -24,7 +24,7 @@ model User {
   updatedAt         DateTime?  @updatedAt @map("updated_at") @db.Timestamp(0)
   orders            Order[]
   reviews           Review[]
-  refreshToken      String?    @db.VarChar(255)
+  refreshToken  String?  @map("refresh_token") @db.VarChar(255)
 
   @@index([email], map: "users_email_index")
   @@index([role], map: "users_role_index")
