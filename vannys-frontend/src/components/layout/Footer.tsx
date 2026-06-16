@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Mail, Phone, MapPin, Instagram, Facebook } from 'lucide-react';
+import { Mail, Phone, MapPin, MessageCircle, Facebook } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -15,12 +15,21 @@ export function Footer() {
               Votre boutique de mode en ligne. Des collections soigneusement sélectionnées pour sublimer votre style.
             </p>
             <div className="flex gap-3 mt-4">
-              <a href="#" className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
-                <Instagram className="w-4 h-4" />
+              <a 
+                href="https://whatsapp.com/channel/0029VbC8i279Bb5vOARShm02" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4" />
               </a>
-              <a href="#" className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
+
+              <button 
+                onClick={() => alert("Page facebook non disponible pour le moment")}
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+              >
                 <Facebook className="w-4 h-4" />
-              </a>
+              </button>
             </div>
           </div>
 
@@ -49,17 +58,33 @@ export function Footer() {
             <ul className="space-y-3 text-sm">
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#c8a96e] shrink-0" />
-                <a href="mailto:contact@vannystouch.com" className="hover:text-white transition-colors">
-                  contact@vannystouch.com
+                <a href="mailto:vannystouch.shop@gmail.com" className="hover:text-white transition-colors">
+                  vannystouch.shop@gmail.com
                 </a>
               </li>
+
               <li className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-[#c8a96e] shrink-0" />
-                <span>+229 01 XX XX XX XX</span>
+                <a 
+                  href="https://wa.me/2290141196651" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-[#c8a96e] transition-colors"
+                >
+                  +229 01 41 19 66 51
+                </a>
               </li>
+
               <li className="flex items-start gap-2">
                 <MapPin className="w-4 h-4 text-[#c8a96e] shrink-0 mt-0.5" />
-                <span>Cotonou, Bénin</span>
+                <a 
+                  href="https://maps.app.goo.gl/v6D1x26R8XbUo9d7A" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-[#c8a96e] transition-colors underline-offset-4 hover:underline"
+                >
+                  F82W+4P8, Abomey-Calavi, Bénin
+                </a>
               </li>
             </ul>
           </div>
