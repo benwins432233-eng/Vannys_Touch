@@ -7,6 +7,15 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
+// ── Patch global BigInt → JSON ─────────────────────────────────
+// MySQL/Prisma retourne les IDs en BigInt.
+// JSON.stringify ne sait pas les sérialiser nativement → erreur 500.
+// Ce patch les convertit automatiquement en string lors de toute
+// sérialisation JSON, sans modifier la logique métier.
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
@@ -49,7 +58,7 @@ async function bootstrap() {
   if (nodeEnv !== 'production') {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Vannys Touch API')
-      .setDescription('API e-commerce Vannys Touch — NestJS + Prisma + PostgreSQL')
+      .setDescription('API e-commerce Vannys Touch — NestJS + Prisma + MySQL')
       .setVersion('1.0')
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
       .build();
