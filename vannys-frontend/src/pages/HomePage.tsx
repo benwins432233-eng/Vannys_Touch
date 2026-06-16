@@ -109,11 +109,11 @@ export function HomePage() {
             ))}
 
             <div className="flex gap-4 flex-wrap">
-              <Link to="/shop" className="btn-primary">
+              <Link to="/products" className="btn-primary">
                 Découvrir la boutique
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link to="/shop?featured=true" className="btn-outline border-white/40 text-white hover:bg-white hover:text-gray-900">
+              <Link to="/products?featured=true" className="btn-outline border-white/40 text-white hover:bg-white hover:text-gray-900">
                 Nos coups de cœur
               </Link>
             </div>
