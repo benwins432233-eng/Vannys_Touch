@@ -32,19 +32,20 @@ export class OrdersController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
-    return this.ordersService.findMyOrders(user.id, page, limit);
+    // user.id est BigInt (Prisma/MySQL) — le service attend un string
+    return this.ordersService.findMyOrders(user.id.toString(), page, limit);
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new order' })
   create(@CurrentUser() user: User, @Body() dto: CreateOrderDto) {
-    return this.ordersService.create(user.id, dto);
+    return this.ordersService.create(user.id.toString(), dto);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get order by ID (owner or admin)' })
   findOne(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.ordersService.findOne(id, user.id, user.role);
+    return this.ordersService.findOne(id, user.id.toString(), user.role);
   }
 
   // ── Admin routes ──────────────────────────────────────────

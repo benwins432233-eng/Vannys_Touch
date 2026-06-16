@@ -31,7 +31,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout and invalidate refresh token' })
   logout(@CurrentUser() user: User) {
-    return this.authService.logout(user.id);
+    // user.id est BigInt (Prisma/MySQL) — le service attend un string
+    return this.authService.logout(user.id.toString());
   }
 
   @Public()
@@ -54,6 +55,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current authenticated user' })
   me(@CurrentUser() user: User) {
-    return this.authService.getMe(user.id);
+    // user.id est BigInt (Prisma/MySQL) — le service attend un string
+    return this.authService.getMe(user.id.toString());
   }
 }
