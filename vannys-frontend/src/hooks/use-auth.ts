@@ -13,7 +13,7 @@ export const useLogin = () => {
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken, data.refreshToken);
       toast.success(`Bienvenue, ${data.user.firstName} !`);
-      navigate(data.user.role === 'ADMIN' ? '/admin' : '/');
+      navigate(data.user.role === 'admin' ? '/admin' : '/');
     },
     onError: () => {
       toast.error('Email ou mot de passe incorrect');
@@ -39,13 +39,16 @@ export const useRegister = () => {
 };
 
 export const useLogout = () => {
-  const { clearAuth } = useAuthStore();
+  const { clearAuth, refreshToken } = useAuthStore();
   const navigate = useNavigate();
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: authApi.logout,
+    // On passe le refreshToken dans le body — la route est désormais publique
+    // donc pas besoin d'un access token valide pour se déconnecter
+    mutationFn: () => authApi.logout(refreshToken ?? undefined),
     onSettled: () => {
+      // Toujours nettoyer côté client, même si la requête échoue
       clearAuth();
       qc.clear();
       navigate('/login');

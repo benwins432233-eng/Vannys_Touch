@@ -1,10 +1,17 @@
 import { Controller, Post, Get, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, ResetPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { User } from '@prisma/client';
+
+class LogoutDto {
+  @IsString()
+  @IsOptional()
+  refreshToken?: string;
+}
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -26,13 +33,16 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  // Logout est Public : le token d'accès peut être expiré au moment du logout.
+  // On invalide la session via le refreshToken fourni dans le body.
+  // Si aucun refreshToken n'est fourni, la réponse est quand même 200
+  // (le client a déjà supprimé ses tokens locaux).
+  @Public()
   @Post('logout')
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Logout and invalidate refresh token' })
-  logout(@CurrentUser() user: User) {
-    // user.id est BigInt (Prisma/MySQL) — le service attend un string
-    return this.authService.logout(user.id.toString());
+  @ApiOperation({ summary: 'Logout — invalide le refresh token en base' })
+  logout(@Body() dto: LogoutDto) {
+    return this.authService.logoutByRefreshToken(dto.refreshToken);
   }
 
   @Public()
@@ -46,7 +56,7 @@ export class AuthController {
   @Public()
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset password by email (no token verification in MVP)' })
+  @ApiOperation({ summary: 'Reset password by email' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
@@ -55,7 +65,6 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current authenticated user' })
   me(@CurrentUser() user: User) {
-    // user.id est BigInt (Prisma/MySQL) — le service attend un string
     return this.authService.getMe(user.id.toString());
   }
 }

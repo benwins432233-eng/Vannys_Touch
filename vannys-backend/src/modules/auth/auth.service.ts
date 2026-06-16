@@ -13,7 +13,6 @@ import { MailService } from '../mail/mail.service';
 import { RegisterDto, LoginDto, ResetPasswordDto } from './dto/auth.dto';
 import * as bcrypt from 'bcryptjs';
 
-// Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
   try {
     return BigInt(id);
@@ -46,7 +45,6 @@ export class AuthService {
       },
     });
 
-    // user.id est BigInt — on le passe directement aux helpers privés
     const tokens = await this.generateTokens(user.id, user.email, user.role);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
 
@@ -74,11 +72,38 @@ export class AuthService {
     return { user: safeUser, ...tokens };
   }
 
+  // Logout via userId (route protégée — non utilisée actuellement mais conservée)
   async logout(userId: string) {
     await this.prisma.user.update({
       where: { id: toId(userId) },
       data: { refreshToken: null },
     });
+    return { message: 'Logged out successfully' };
+  }
+
+  // Logout via refreshToken — fonctionne même si l'access token est expiré.
+  // Si aucun refreshToken n'est fourni, on répond 200 directement
+  // (le client a déjà supprimé ses tokens locaux, c'est suffisant).
+  async logoutByRefreshToken(refreshToken?: string): Promise<{ message: string }> {
+    if (!refreshToken) {
+      return { message: 'Logged out successfully' };
+    }
+
+    try {
+      const payload = this.jwt.verify(refreshToken, {
+        secret: this.config.getOrThrow('JWT_REFRESH_SECRET'),
+      });
+
+      // Invalider le refresh token en base sans vérifier sa valeur hashée
+      // (on fait confiance à la signature JWT qui a déjà été validée ci-dessus)
+      await this.prisma.user.update({
+        where: { id: BigInt(payload.sub) },
+        data: { refreshToken: null },
+      });
+    } catch {
+      // Token invalide ou expiré : pas grave, on considère la session terminée
+    }
+
     return { message: 'Logged out successfully' };
   }
 
@@ -126,7 +151,6 @@ export class AuthService {
 
   // ─── Private helpers ──────────────────────────────────────────
 
-  // userId est BigInt (vient directement de Prisma) — on le convertit en string pour le JWT
   private async generateTokens(userId: bigint, email: string, role: string) {
     const payload = { sub: userId.toString(), email, role };
 
@@ -144,7 +168,6 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  // userId est BigInt (vient directement de Prisma)
   private async saveRefreshToken(userId: bigint, token: string) {
     const hashed = await bcrypt.hash(token, 10);
     await this.prisma.user.update({

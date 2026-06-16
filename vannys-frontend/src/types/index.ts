@@ -1,9 +1,10 @@
 // ─── Auth & Users ──────────────────────────────────────────────
 
-export type Role = 'USER' | 'ADMIN';
+// Les valeurs correspondent à l'enum MySQL : enum('user','admin') — minuscules
+export type Role = 'user' | 'admin';
 
 export interface User {
-  id: string;
+  id: string; // BigInt sérialisé en string
   firstName: string;
   lastName: string;
   email: string;
@@ -77,7 +78,8 @@ export interface Product {
 
 // ─── Orders ────────────────────────────────────────────────────
 
-export type OrderStatus = 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
+// Valeurs de l'enum MySQL orders_status
+export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
   id: string;

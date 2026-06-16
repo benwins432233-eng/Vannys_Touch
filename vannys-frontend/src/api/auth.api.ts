@@ -18,8 +18,10 @@ export const authApi = {
     return res.data.data;
   },
 
-  logout: async (): Promise<void> => {
-    await apiClient.post('/auth/logout');
+  // Envoie le refreshToken dans le body — la route est publique côté backend.
+  // Fonctionne même si l'access token est expiré.
+  logout: async (refreshToken?: string): Promise<void> => {
+    await apiClient.post('/auth/logout', { refreshToken });
   },
 
   refresh: async (refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> => {
