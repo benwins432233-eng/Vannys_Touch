@@ -13,31 +13,31 @@ const FEATURES = [
 
 const HERO_SLIDES = [
   {
-    image: 'https://res-console.cloudinary.com/dggmjflpm/thumbnails/transform/v1/image/upload/Y19maWxsLGhfMjAwLHdfMjAw/v1/cGhvdG8tMTU1MDAwOTE1OC05ZWJmNjkxNzNlMDNfcmJiZWFh/template_primary',
+    image: 'https://res.cloudinary.com/dggmjflpm/image/upload/v1781605678/photo-1550009158-9ebf69173e03_rbbeaa.jpg',
     title: 'Sublimez votre',
     highlight: 'style',
     subtitle: 'Découvrez des pièces uniques, élégantes et modernes. Livraison partout au Bénin.',
   },
   {
-    image: 'https://res-console.cloudinary.com/dggmjflpm/thumbnails/transform/v1/image/upload/Y19maWxsLGhfMjAwLHdfMjAw/v1/cHJlbWl1bV92ZWN0b3ItMTY4MjMwOTQ1ODQwNC0yNWI2YmYwYTY0YzZfYWY1cDJr/template_primary',
+    image: 'https://res.cloudinary.com/dggmjflpm/image/upload/v1781605815/premium_vector-1682309458404-25b6bf0a64c6_af5p2k.png',
     title: 'Nouvelle',
     highlight: 'collection',
     subtitle: 'Des produits soigneusement sélectionnés pour vous offrir le meilleur.',
   },
   {
-    image: 'https://res-console.cloudinary.com/dggmjflpm/thumbnails/transform/v1/image/upload/Y19maWxsLGhfMjAwLHdfMjAw/v1/cHJlbWl1bV9waG90by0xNzY5OTExMzEzNzI3LTQxMWU5YjBkMjJmMl9tZ2E2ank=/template_primary',
+    image: 'https://res.cloudinary.com/dggmjflpm/image/upload/v1781605813/premium_photo-1769911313727-411e9b0d22f2_mga6jy.jpg',
     title: 'Élégance &',
     highlight: 'modernité',
     subtitle: 'Une sélection premium pour un lifestyle raffiné.',
   },
   {
-    image: 'https://res-console.cloudinary.com/dggmjflpm/thumbnails/transform/v1/image/upload/Y19maWxsLGhfMjAwLHdfMjAw/v1/cHJlbWl1bV9waG90by0xNjgxNDg4MjYyMzY0LThhZWIxYjZhYWM1Nl9hdnJ2bXk=/template_primary',
+    image: 'https://res.cloudinary.com/dggmjflpm/image/upload/v1781605811/premium_photo-1681488262364-8aeb1b6aac56_avrvmy.jpg',
     title: 'Votre destination',
     highlight: 'shopping',
     subtitle: 'Tout ce dont vous avez besoin, livré rapidement au Bénin.',
   },
   {
-    image: 'https://res-console.cloudinary.com/dggmjflpm/thumbnails/transform/v1/image/upload/Y19maWxsLGhfMjAwLHdfMjAw/v1/cGhvdG8tMTQ0MTk4NjMwMDkxNy02NDY3NGJkNjAwZDhfYXJ4cGVl/template_primary',
+    image: 'https://res.cloudinary.com/dggmjflpm/image/upload/v1781605797/photo-1441986300917-64674bd600d8_arxpee.jpg',
     title: 'Qualité &',
     highlight: 'confiance',
     subtitle: 'Des produits authentiques pour une expérience d\'achat exceptionnelle.',
