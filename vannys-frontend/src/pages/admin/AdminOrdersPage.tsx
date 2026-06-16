@@ -5,7 +5,8 @@ import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { formatPrice, formatDate, ORDER_STATUS_LABELS } from '@/utils';
 import type { OrderStatus, Order } from '@/types';
 
-const STATUSES: OrderStatus[] = ['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
+// Valeurs minuscules correspondant à l'enum MySQL orders_status
+const STATUSES: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 
 export function AdminOrdersPage() {
   const [search, setSearch] = useState('');
@@ -92,7 +93,6 @@ export function AdminOrdersPage() {
                       </td>
                     </tr>
 
-                    {/* Expanded row */}
                     {expandedId === order.id && (
                       <tr key={`${order.id}-expanded`}>
                         <td colSpan={6} className="px-4 py-4 bg-gray-50">
@@ -129,7 +129,6 @@ export function AdminOrdersPage() {
                                 <p>📞 {order.deliveryPhone}</p>
                               </div>
 
-                              {/* Status update */}
                               <div className="mt-4 space-y-2">
                                 <h3 className="font-semibold text-gray-700 text-sm">Changer le statut</h3>
                                 <input

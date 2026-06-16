@@ -24,8 +24,9 @@ export function AdminUsersPage() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('Statut modifié'); },
   });
 
-  const { mutate: setAdmin } = useMutation({
-    mutationFn: ({ id, role }: { id: string; role: 'ADMIN' | 'USER' }) =>
+  const { mutate: setRole } = useMutation({
+    // Valeurs minuscules correspondant à l'enum MySQL users_role
+    mutationFn: ({ id, role }: { id: string; role: 'admin' | 'user' }) =>
       apiClient.patch(`/users/${id}/role`, { role }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['admin-users'] }); toast.success('Rôle mis à jour'); },
   });
@@ -78,8 +79,10 @@ export function AdminUsersPage() {
                     <td className="px-4 py-3 text-gray-500">{user.email}</td>
                     <td className="px-4 py-3 text-gray-500">{user.phone ?? '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>
-                        {user.role === 'ADMIN' ? 'Admin' : 'Client'}
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {user.role === 'admin' ? 'Admin' : 'Client'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -91,15 +94,19 @@ export function AdminUsersPage() {
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
                         <button
-                          onClick={() => user.isActive ? toggleActive(user.id) : toggleActive(user.id)}
+                          onClick={() => toggleActive(user.id)}
                           title={user.isActive ? 'Désactiver' : 'Activer'}
-                          className={`p-1.5 rounded-lg transition-colors ${user.isActive ? 'text-gray-400 hover:text-red-600 hover:bg-red-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            user.isActive
+                              ? 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                              : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                          }`}
                         >
                           {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
                         </button>
                         <button
-                          onClick={() => setAdmin({ id: user.id, role: user.role === 'ADMIN' ? 'USER' : 'ADMIN' })}
-                          title={user.role === 'ADMIN' ? 'Retirer admin' : 'Rendre admin'}
+                          onClick={() => setRole({ id: user.id, role: user.role === 'admin' ? 'user' : 'admin' })}
+                          title={user.role === 'admin' ? 'Retirer admin' : 'Rendre admin'}
                           className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
                         >
                           <ShieldCheck className="w-4 h-4" />

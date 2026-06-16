@@ -45,9 +45,9 @@ export function ProfilePage() {
               <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
               <p className="text-sm text-gray-500">{user?.email}</p>
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${
-                user?.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                user?.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
               }`}>
-                {user?.role === 'ADMIN' ? 'Administrateur' : 'Client'}
+                {user?.role === 'admin' ? 'Administrateur' : 'Client'}
               </span>
             </div>
           </div>

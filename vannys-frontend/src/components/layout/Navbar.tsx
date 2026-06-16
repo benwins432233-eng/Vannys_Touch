@@ -65,7 +65,7 @@ export function Navbar() {
             {/* Auth */}
             {isAuthenticated ? (
               <div className="hidden md:flex items-center gap-2">
-                {user?.role === 'ADMIN' && (
+                {user?.role === 'admin' && (
                   <Link to="/admin" className="btn-ghost text-sm">
                     <LayoutDashboard className="w-4 h-4" />
                     Admin
@@ -118,7 +118,7 @@ export function Navbar() {
             ))}
             {isAuthenticated ? (
               <>
-                {user?.role === 'ADMIN' && (
+                {user?.role === 'admin' && (
                   <Link to="/admin" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Dashboard admin</Link>
                 )}
                 <Link to="/profile" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Mon profil</Link>
