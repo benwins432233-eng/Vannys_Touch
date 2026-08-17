@@ -2,15 +2,93 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =============================================================
+   JETONS DE CONCEPTION — source de vérité unique des couleurs
+   -------------------------------------------------------------
+   Les valeurs sont en canaux HSL sans la fonction hsl(), pour que
+   Tailwind puisse leur appliquer une opacité (bg-primary/10).
+   Règle : tout jeton défini ici l'est AUSSI dans le bloc .dark.
+   Aucune couleur ne doit exister uniquement en mode sombre.
+   ============================================================= */
+
 @layer base {
   :root {
-    --color-gold: #c8a96e;
-    --color-gold-dark: #a8884e;
-    --color-gold-light: #e8c98e;
+    /* Surfaces */
+    --background: 0 0% 100%;
+    --foreground: 24 10% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 24 10% 12%;
+    --muted: 30 20% 96%;
+    --muted-foreground: 25 6% 42%;
+
+    /* Or signature — accent uniquement, jamais un fond de page */
+    --accent: 39 45% 61%;
+    --accent-foreground: 24 10% 12%;
+
+    /* Or profond — surfaces pleines portant du texte clair (contraste AA) */
+    --primary: 36 39% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Traits et champs */
+    --border: 30 15% 89%;
+    --input: 30 15% 85%;
+    --ring: 39 45% 55%;
+
+    /* États */
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 55% 32%;
+    --success-foreground: 0 0% 100%;
+    --warning: 32 85% 40%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Rayon */
+    --radius: 0.75rem;
+
+    /* @deprecated — alias des anciennes variables, encore utilisés en style inline.
+       Dérivés des jetons ci-dessus : ne jamais leur donner une valeur indépendante.
+       À supprimer quand les pages auront migré vers les classes Tailwind. */
+    --color-gold: hsl(var(--accent));
+    --color-gold-dark: hsl(var(--primary));
+    --color-gold-light: hsl(39 45% 72%);
+  }
+
+  .dark {
+    --background: 24 10% 8%;
+    --foreground: 30 20% 94%;
+    --card: 24 9% 11%;
+    --card-foreground: 30 20% 94%;
+    --muted: 24 8% 16%;
+    --muted-foreground: 30 8% 66%;
+
+    --accent: 39 45% 61%;
+    --accent-foreground: 24 10% 10%;
+
+    /* Sur fond sombre, l'or clair porte du texte sombre : plus lisible */
+    --primary: 39 45% 61%;
+    --primary-foreground: 24 10% 10%;
+
+    --border: 24 8% 22%;
+    --input: 24 8% 26%;
+    --ring: 39 45% 61%;
+
+    --destructive: 0 65% 58%;
+    --destructive-foreground: 24 10% 10%;
+    --success: 152 45% 55%;
+    --success-foreground: 24 10% 10%;
+    --warning: 32 80% 60%;
+    --warning-foreground: 24 10% 10%;
+
+    --radius: 0.75rem;
+
+    /* @deprecated — voir :root */
+    --color-gold: hsl(var(--accent));
+    --color-gold-dark: hsl(39 45% 50%);
+    --color-gold-light: hsl(39 45% 72%);
   }
 
   * {
-    @apply box-border;
+    @apply box-border border-border;
   }
 
   html {
@@ -18,62 +96,68 @@
   }
 
   body {
-    @apply bg-white text-gray-900 antialiased;
+    @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Focus visible sur tout élément interactif — exigence d'accessibilité §4.4 */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Animations courtes, désactivées si l'utilisateur le demande — §4.7 */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold text-white transition-all duration-200;
-    background-color: var(--color-gold);
-  }
-
-  .btn-primary:hover {
-    background-color: var(--color-gold-dark);
-    @apply shadow-md -translate-y-px;
-  }
-
-  .btn-primary:disabled {
-    @apply opacity-50 cursor-not-allowed transform-none;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold
+           bg-primary text-primary-foreground transition-colors duration-200
+           hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 transition-all duration-200;
-    border-color: var(--color-gold);
-    color: var(--color-gold);
-  }
-
-  .btn-outline:hover {
-    background-color: var(--color-gold);
-    @apply text-white;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold
+           border-2 border-accent text-accent-foreground transition-colors duration-200
+           hover:bg-accent hover:text-accent-foreground
+           disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium text-gray-600 hover:bg-gray-100 transition-colors duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium
+           text-muted-foreground transition-colors duration-200
+           hover:bg-muted hover:text-foreground
+           disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .input {
-    @apply w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 transition-shadow duration-200;
-    focus-ring-color: var(--color-gold);
-  }
-
-  .input:focus {
-    @apply ring-2 border-transparent;
-    --tw-ring-color: var(--color-gold);
+    @apply w-full px-4 py-3 rounded-lg text-sm bg-background text-foreground
+           border border-input placeholder:text-muted-foreground
+           transition-shadow duration-200
+           focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent
+           disabled:opacity-50 disabled:cursor-not-allowed;
   }
 
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1.5;
+    @apply block text-sm font-medium text-foreground mb-1.5;
   }
 
   .card {
-    @apply bg-white rounded-xl border border-gray-100 shadow-sm;
+    @apply bg-card text-card-foreground rounded-xl border border-border shadow-card;
   }
 
   .badge-gold {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold text-white;
-    background-color: var(--color-gold);
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+           bg-accent text-accent-foreground;
   }
 
   .page-container {

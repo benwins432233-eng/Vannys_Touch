@@ -1,5 +1,13 @@
 import type { OrderStatus } from '@/types';
 
+/**
+ * Concatène des classes conditionnelles.
+ * Volontairement minimal : pas de fusion de conflits Tailwind, on écrit les
+ * variantes des composants de façon à ne pas se contredire.
+ */
+export const cn = (...classes: (string | false | null | undefined)[]): string =>
+  classes.filter(Boolean).join(' ');
+
 export const formatPrice = (value: number | string): string => {
   return Number(value).toLocaleString('fr-FR') + ' FCFA';
 };
