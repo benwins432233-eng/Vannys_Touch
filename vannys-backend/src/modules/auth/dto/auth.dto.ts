@@ -42,10 +42,15 @@ export class LoginDto {
   password: string;
 }
 
+/**
+ * Changement de mot de passe par un utilisateur authentifié.
+ * L'utilisateur cible provient TOUJOURS du jeton, jamais du corps de requête :
+ * accepter un `email` ici permettait de réinitialiser n'importe quel compte.
+ */
 export class ResetPasswordDto {
-  @IsEmail()
+  @IsString()
   @IsNotEmpty()
-  email: string;
+  currentPassword: string;
 
   @IsString()
   @MinLength(8)

@@ -44,9 +44,12 @@ export class ProductsService {
       where.category = { slug: category };
     }
     if (search) {
+      // MySQL ne supporte pas mode:'insensitive' (c'est PostgreSQL) : Prisma rejette
+      // l'argument et la recherche échouait. MySQL est déjà insensible à la casse
+      // sur les collations utf8mb4_*_ci des colonnes VARCHAR/TEXT.
       where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search } },
+        { description: { contains: search } },
       ];
     }
     if (minPrice !== undefined) where.price = { ...where.price, gte: minPrice };

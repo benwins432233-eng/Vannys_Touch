@@ -21,7 +21,8 @@ async function main() {
       lastName: 'Vannys',
       email: 'admin@vannystouch.com',
       password: hashedPassword,
-      role: 'ADMIN',
+      // L'enum MySQL users_role vaut 'user' | 'admin' — 'ADMIN' faisait échouer le seed
+      role: 'admin',
       isActive: true,
     },
   });

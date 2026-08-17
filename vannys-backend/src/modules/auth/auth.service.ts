@@ -128,9 +128,18 @@ export class AuthService {
     }
   }
 
-  async resetPassword(dto: ResetPasswordDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+  /**
+   * Changement de mot de passe d'un utilisateur authentifié.
+   * L'identifiant vient du jeton : impossible de viser le compte d'autrui.
+   * Le mot de passe actuel est exigé, et toutes les sessions sont invalidées.
+   */
+  async resetPassword(userId: string, dto: ResetPasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: toId(userId) } });
     if (!user) throw new NotFoundException('User not found');
+
+    if (!(await bcrypt.compare(dto.currentPassword, user.password))) {
+      throw new UnauthorizedException('Mot de passe actuel incorrect');
+    }
 
     const hashed = await bcrypt.hash(dto.password, 10);
     const updated = await this.prisma.user.update({

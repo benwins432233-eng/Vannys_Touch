@@ -53,12 +53,16 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken);
   }
 
-  @Public()
+  // ⚠️ Cette route était publique et acceptait { email, password } : n'importe qui
+  // pouvait redéfinir le mot de passe de n'importe quel compte, administrateur compris.
+  // Elle exige désormais une authentification et le mot de passe actuel.
+  // @deprecated — remplacée par POST /auth/password/forgot + /auth/password/reset (jeton).
   @Post('reset-password')
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset password by email' })
-  resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.authService.resetPassword(dto);
+  @ApiOperation({ summary: 'Change own password (requires current password)' })
+  resetPassword(@CurrentUser() user: User, @Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(user.id.toString(), dto);
   }
 
   @Get('me')

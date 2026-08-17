@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-seed/
+*.tsbuildinfo
 
 # Environment variables (NEVER commit)
 .env
@@ -12,6 +13,11 @@ dist-seed/
 
 # Prisma generated client
 node_modules/.prisma/
+
+# Archives (une archive du projet embarque le .env et fuite tous les secrets)
+*.zip
+*.tar
+*.tar.gz
 
 # Logs
 *.log
