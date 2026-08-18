@@ -28,6 +28,8 @@ model User {
   statusChanges     OrderStatusHistory[]
   accountTokens     AccountToken[]
   addresses         Address[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
   refreshToken      String?              @map("refresh_token") @db.VarChar(255)
 
   @@index([email], map: "users_email_index")
@@ -126,6 +128,45 @@ model ProductVariant {
   @@unique([productId, size, color], map: "product_variants_product_size_color_unique")
   @@index([productId], map: "product_variants_product_id_index")
   @@map("product_variants")
+}
+
+/// Notification affichée dans l'application.
+///
+/// `type` est une chaîne et non un ENUM : les types de notification se
+/// multiplient au fil des fonctionnalités, et chaque ajout ne doit pas coûter
+/// une migration. Les valeurs connues sont listées dans `notification-types.ts`.
+model Notification {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  type      String    @db.VarChar(50)
+  title     String    @db.VarChar(150)
+  message   String    @db.Text
+  /// Chemin interne vers la ressource concernée (/orders/12), jamais une URL absolue.
+  link      String?   @db.VarChar(500)
+  readAt    DateTime? @map("read_at") @db.Timestamp(0)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "notifications_user_id_foreign")
+
+  @@index([userId, readAt], map: "notifications_user_id_read_at_index")
+  @@index([userId, createdAt], map: "notifications_user_id_created_at_index")
+  @@map("notifications")
+}
+
+/// Abonnement d'un navigateur aux notifications push.
+/// Un même compte peut en avoir plusieurs : téléphone, ordinateur, tablette.
+model PushSubscription {
+  id        BigInt   @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt   @map("user_id") @db.UnsignedBigInt
+  /// Fourni par le navigateur ; identifie l'appareil de façon unique.
+  endpoint  String   @unique(map: "push_subscriptions_endpoint_unique") @db.VarChar(500)
+  p256dh    String   @db.VarChar(255)
+  auth      String   @db.VarChar(255)
+  userAgent String?  @map("user_agent") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(0)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "push_subscriptions_user_id_foreign")
+
+  @@index([userId], map: "push_subscriptions_user_id_index")
+  @@map("push_subscriptions")
 }
 
 /// Jeton à usage unique : vérification d'email ou réinitialisation de mot de passe.

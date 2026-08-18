@@ -6,6 +6,7 @@ import { useCartStore } from '@/store/cart.store';
 import { useCart } from '@/hooks/use-cart';
 import { useLogout } from '@/hooks/use-auth';
 import { ThemeToggle } from '@/components/ui';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export function Navbar() {
   const { isAuthenticated, user } = useAuthStore();
@@ -49,6 +50,9 @@ export function Navbar() {
           {/* Actions */}
           <div className="flex items-center gap-3">
             <ThemeToggle className="hidden sm:inline-flex" />
+
+            {/* Notifications — rien à montrer à un visiteur non connecté */}
+            {isAuthenticated && <NotificationBell />}
 
             {/* Cart */}
             <button

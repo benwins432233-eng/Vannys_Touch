@@ -10,6 +10,13 @@ import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import {
+  adminNewOrder,
+  lowStock,
+  orderCreated,
+  orderStatusChanged,
+} from '../notifications/notification-types';
 import {
   CancelOrderDto,
   CreateOrderDto,
@@ -63,6 +70,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly notifications: NotificationsService,
     config: ConfigService,
   ) {
     // TODO (lot L6) : ces montants viendront de la table `settings`.
@@ -268,6 +276,20 @@ export class OrdersService {
     this.mail.sendOrderConfirmed(orderWithUser as any).catch(() => null);
     this.mail.sendAdminNewOrder(orderWithUser as any).catch(() => null);
 
+    // Notifications hors transaction : une panne d'envoi ne doit pas annuler
+    // une commande déjà enregistrée et déjà décrémentée du stock.
+    const orderId = order.id.toString();
+    void this.notifications.notify(userIdBigInt, orderCreated(order.reference, orderId));
+    void this.notifications.notifyAdmins(
+      adminNewOrder(
+        order.reference,
+        orderId,
+        `${user.firstName} ${user.lastName}`,
+        `${Number(order.total).toLocaleString('fr-FR')} FCFA`,
+      ),
+    );
+    void this.warnLowStock(order.items.map((item) => item.variantId));
+
     return order;
   }
 
@@ -405,7 +427,53 @@ export class OrdersService {
       this.mail.sendOrderShipped(updated as any).catch(() => null);
     }
 
+    void this.notifications.notify(
+      updated.userId,
+      orderStatusChanged(updated.reference, updated.id.toString(), next),
+    );
+
     return updated;
+  }
+
+  /**
+   * Prévient l'administration des déclinaisons passées sous le seuil d'alerte.
+   * Appelé après une commande : c'est le seul moment où le stock baisse.
+   */
+  private async warnLowStock(variantIds: (bigint | null)[]): Promise<void> {
+    try {
+      const ids = variantIds.filter((id): id is bigint => id !== null);
+      if (!ids.length) return;
+
+      const variants = await this.prisma.productVariant.findMany({
+        where: { id: { in: ids } },
+        select: { productId: true },
+        distinct: ['productId'],
+      });
+
+      for (const { productId } of variants) {
+        // Le seuil vaut pour le produit entier, pas pour une seule
+        // déclinaison : trois tailles à une unité chacune, ce n'est pas
+        // une rupture.
+        const product = await this.prisma.product.findUnique({
+          where: { id: productId },
+          select: {
+            name: true,
+            lowStockThreshold: true,
+            variants: { where: { isActive: true }, select: { stock: true } },
+          },
+        });
+        if (!product) continue;
+
+        const remaining = product.variants.reduce((sum, v) => sum + v.stock, 0);
+        if (remaining <= product.lowStockThreshold) {
+          await this.notifications.notifyAdmins(
+            lowStock(product.name, remaining, productId.toString()),
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Alerte de stock faible non envoyée : ${(error as Error).message}`);
+    }
   }
 
   /**

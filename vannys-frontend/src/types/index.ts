@@ -104,6 +104,36 @@ export interface Product {
   createdAt: string;
 }
 
+// ─── Notifications ─────────────────────────────────────────────
+
+/**
+ * Types connus. La colonne est une chaîne côté base : un type inconnu doit
+ * s'afficher proprement plutôt que casser la page.
+ */
+export type NotificationType =
+  | 'order_created'
+  | 'order_status_changed'
+  | 'order_cancelled'
+  | 'low_stock'
+  | 'admin_new_order';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType | string;
+  title: string;
+  message: string;
+  /** Chemin interne vers la ressource concernée. */
+  link?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationFeed {
+  items: AppNotification[];
+  unreadCount: number;
+  meta: { total: number; page: number; limit: number; lastPage: number };
+}
+
 // ─── Panier serveur ────────────────────────────────────────────
 
 /** Ligne du panier telle que le serveur la renvoie : prix et stock relus en base. */

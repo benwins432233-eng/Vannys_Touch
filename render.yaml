@@ -49,4 +49,13 @@ services:
         value: 50000
       - key: SHIPPING_FEE
         value: 2500
+      # Notifications push — facultatif. Sans ces trois clés, le push se
+      # désactive proprement et le reste de la boutique fonctionne à l'identique.
+      # Générer la paire : npx web-push generate-vapid-keys
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
     healthCheckPath: /api/v1/health

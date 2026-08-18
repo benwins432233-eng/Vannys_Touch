@@ -21,6 +21,7 @@ import { CheckoutPage } from '@/pages/CheckoutPage';
 import { OrdersPage } from '@/pages/OrdersPage';
 import { OrderDetailPage } from '@/pages/OrderDetailPage';
 import { ProfilePage } from '@/pages/ProfilePage';
+import { NotificationsPage } from '@/pages/NotificationsPage';
 
 // Admin pages
 import { AdminDashboardPage } from '@/pages/admin/AdminDashboardPage';
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/orders/:id" element={<OrderDetailPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 

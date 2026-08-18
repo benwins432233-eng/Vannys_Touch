@@ -288,6 +288,49 @@ Le tunnel de commande pré-remplit le formulaire avec l'adresse par défaut. La
 commande garde une **copie** de l'adresse, jamais une référence : modifier son
 carnet ne doit pas réécrire l'endroit où une commande passée a été livrée.
 
+## Notifications
+
+Une cliente n'était prévenue de rien : tout passait par un email — quand
+l'adresse était bonne — ou par un appel. Les notifications sont désormais
+enregistrées en base et consultables dans l'application, cloche dans l'en-tête
+et page « Notifications ».
+
+| Route | Rôle |
+| --- | --- |
+| `GET /api/v1/notifications` | Fil paginé et compteur de non-lues |
+| `PATCH /api/v1/notifications/:id/read` | Marquer une notification comme lue |
+| `PATCH /api/v1/notifications/read-all` | Tout marquer comme lu |
+| `POST /api/v1/notifications/push` | Abonner un appareil |
+| `DELETE /api/v1/notifications/push` | Désabonner un appareil |
+| `GET /api/v1/notifications/push/config` | Clé publique VAPID (public) |
+
+**Déclencheurs** : commande enregistrée (cliente **et** administration),
+changement de statut, annulation, et stock faible après une commande — le seuil
+s'apprécie sur le **produit entier**, pas sur une seule déclinaison : trois
+tailles à une unité chacune, ce n'est pas une rupture.
+
+Une notification n'échoue jamais bruyamment : elle est rendue en plus du
+parcours, et une panne d'envoi ne doit pas faire échouer la commande qui l'a
+déclenchée.
+
+### Push web — facultatif
+
+Renseigner `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` et `VAPID_SUBJECT` (générables
+avec `npx web-push generate-vapid-keys`). **Sans ces clés, le push se désactive
+proprement** : le serveur démarre, l'interface n'affiche pas l'option, et les
+notifications restent consultables dans l'application. Faire échouer le
+démarrage pour une fonctionnalité de confort priverait la boutique de tout le
+reste.
+
+Un abonnement refusé par le navigateur (404/410) est supprimé automatiquement :
+le garder ferait échouer tous les envois suivants.
+
+Le service worker (`public/sw.js`) ne gère pour l'instant que le push. Le cache
+et le mode hors ligne arriveront **dans ce même fichier** au lot L9 : un site
+n'a qu'un service worker par portée, en enregistrer un second remplacerait
+celui-ci. Il est servi avec `Cache-Control: no-store` — un worker périmé
+survivrait sinon à tous les déploiements suivants.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)

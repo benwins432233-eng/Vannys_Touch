@@ -9,6 +9,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CartModule } from './modules/cart/cart.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { MailModule } from './modules/mail/mail.module';
 import { HealthModule } from './health/health.module';
@@ -51,6 +52,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     OrdersModule,
     CartModule,
     AddressesModule,
+    NotificationsModule,
     HealthModule,
   ],
   providers: [
