@@ -13,6 +13,13 @@ import {
   ProductVariantDto,
 } from './dto/product.dto';
 import { withAvailability } from './product-availability';
+import {
+  buildProductWhere,
+  orderByFor,
+  resolvePage,
+  resolvePerPage,
+  resolveSort,
+} from './product-filters';
 import slugify from 'slugify';
 
 //Convertir les types string en bigInt
@@ -22,6 +29,22 @@ const toId = (id: string | number | bigint): bigint => {
   } catch {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
+};
+
+/** Ordre d'affichage des tailles usuelles ; les autres suivent, par ordre alphabétique. */
+const SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '3XL', '4XL'];
+
+const compareSizes = (a: string, b: string): number => {
+  const indexA = SIZE_ORDER.indexOf(a.toUpperCase());
+  const indexB = SIZE_ORDER.indexOf(b.toUpperCase());
+  if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+  if (indexA !== -1) return -1;
+  if (indexB !== -1) return 1;
+  // Tailles numériques (36, 38, 40…) : comparer les nombres, pas les chaînes.
+  const numA = Number(a);
+  const numB = Number(b);
+  if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
+  return a.localeCompare(b, 'fr');
 };
 
 /** Stock attribué à un produit créé sans variante par un client déjà déployé. */
@@ -40,42 +63,17 @@ export class ProductsService {
   ) {}
 
   async findAll(filters: ProductFilterDto) {
-    const {
-      category, search, minPrice, maxPrice, featured,
-      sort = 'createdAt', dir = 'desc',
-      page = 1, limit = 12,
-    } = filters;
-
-    const skip = (page - 1) * Math.min(limit, 50);
-    const take = Math.min(limit, 50);
-
-    const where: any = { isActive: true };
-
-    if (category) {
-      where.category = { slug: category };
-    }
-    if (search) {
-      // MySQL ne supporte pas mode:'insensitive' (c'est PostgreSQL) : Prisma rejette
-      // l'argument et la recherche échouait. MySQL est déjà insensible à la casse
-      // sur les collations utf8mb4_*_ci des colonnes VARCHAR/TEXT.
-      where.OR = [
-        { name: { contains: search } },
-        { description: { contains: search } },
-      ];
-    }
-    if (minPrice !== undefined) where.price = { ...where.price, gte: minPrice };
-    if (maxPrice !== undefined) where.price = { ...where.price, lte: maxPrice };
-    if (featured) where.isFeatured = true;
-
-    const allowedSorts = ['price', 'rating', 'createdAt'];
-    const orderBy = { [allowedSorts.includes(sort) ? sort : 'createdAt']: dir === 'asc' ? 'asc' : 'desc' };
+    const sort = resolveSort(filters.sort, filters.dir);
+    const perPage = resolvePerPage(filters.perPage, filters.limit);
+    const page = resolvePage(filters.page);
+    const where = buildProductWhere(filters);
 
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        skip,
-        take,
-        orderBy,
+        skip: (page - 1) * perPage,
+        take: perPage,
+        orderBy: orderByFor(sort),
         include: {
           category: { select: { id: true, name: true, slug: true } },
           images: { orderBy: { sortOrder: 'asc' } },
@@ -88,7 +86,70 @@ export class ProductsService {
 
     return {
       data: products.map(withAvailability),
-      meta: { total, page, limit: take, lastPage: Math.ceil(total / take) },
+      meta: {
+        total,
+        page,
+        perPage,
+        lastPage: Math.max(1, Math.ceil(total / perPage)),
+        sort,
+        // `limit` est conservé le temps d'une version : des clients déjà
+        // déployés lisent encore ce champ pour paginer.
+        limit: perPage,
+      },
+    };
+  }
+
+  /**
+   * Valeurs de filtre réellement disponibles.
+   *
+   * Construites depuis le catalogue actif, jamais depuis une liste figée :
+   * proposer une taille que plus aucun produit ne porte mène la cliente vers
+   * un résultat vide qu'elle ne comprend pas.
+   */
+  async findFilters() {
+    const activeProducts = { isActive: true };
+
+    const [categories, variants, priceBounds] = await Promise.all([
+      this.prisma.category.findMany({
+        where: { isActive: true, products: { some: activeProducts } },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          _count: { select: { products: { where: activeProducts } } },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.productVariant.findMany({
+        where: { isActive: true, product: activeProducts },
+        select: { size: true, color: true },
+        distinct: ['size', 'color'],
+      }),
+      this.prisma.product.aggregate({
+        where: activeProducts,
+        _min: { price: true },
+        _max: { price: true },
+      }),
+    ]);
+
+    const sizes = [...new Set(variants.map((v) => v.size).filter((v): v is string => !!v))];
+    const colors = [...new Set(variants.map((v) => v.color).filter((v): v is string => !!v))];
+
+    return {
+      categories: categories.map((category) => ({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        productCount: category._count.products,
+      })),
+      // Les tailles suivent l'ordre des vêtements, pas l'alphabet : « L, M, S »
+      // n'a aucun sens pour une cliente.
+      sizes: sizes.sort(compareSizes),
+      colors: colors.sort((a, b) => a.localeCompare(b, 'fr')),
+      priceRange: {
+        min: Number(priceBounds._min.price ?? 0),
+        max: Number(priceBounds._max.price ?? 0),
+      },
     };
   }
 

@@ -50,7 +50,7 @@ const HERO_SLIDES = [
 
 export function HomePage() {
   const settings = useSettings();
-  const { data: featured, isLoading: featuredLoading } = useProducts({ featured: true, limit: 8 });
+  const { data: featured, isLoading: featuredLoading } = useProducts({ featured: true, perPage: 8 });
 
   const [currentSlide, setCurrentSlide] = useState(0);
 

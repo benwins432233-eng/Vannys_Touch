@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Product, PaginatedResponse, ProductFilters } from '@/types';
+import type { CatalogFilterOptions, Product, PaginatedResponse, ProductFilters } from '@/types';
 
 export const productsApi = {
   getAll: async (filters: ProductFilters = {}): Promise<PaginatedResponse<Product>> => {
@@ -13,6 +13,12 @@ export const productsApi = {
 
   getBySlug: async (slug: string): Promise<Product> => {
     const res = await apiClient.get(`/products/${slug}`);
+    return res.data.data;
+  },
+
+  /** Valeurs de filtre réellement disponibles — construites depuis le catalogue actif. */
+  getFilters: async (): Promise<CatalogFilterOptions> => {
+    const res = await apiClient.get('/products/filters');
     return res.data.data;
   },
 

@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -11,6 +12,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+import { AVAILABILITY_FILTERS } from '../product-filters';
+import type { AvailabilityFilter } from '../product-filters';
 
 // Helper : accepte un tableau déjà formé OU une string CSV "Rouge, Bleu" → ['Rouge', 'Bleu']
 // Nécessaire car FormData envoie tout en string, même les tableaux
@@ -221,42 +224,76 @@ export class UpdateProductDto {
 export class ProductFilterDto {
   @IsString()
   @IsOptional()
+  @MaxLength(100)
+  search?: string;
+
+  /** Slug de catégorie. */
+  @IsString()
+  @IsOptional()
   category?: string;
 
   @IsString()
   @IsOptional()
-  search?: string;
+  @MaxLength(50)
+  size?: string;
+
+  @IsString()
+  @IsOptional()
+  @MaxLength(50)
+  color?: string;
 
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
+  @Min(0)
   minPrice?: number;
 
   @Type(() => Number)
   @IsNumber()
   @IsOptional()
+  @Min(0)
   maxPrice?: number;
 
-  @Transform(({ value }) => value === 'true')
+  @IsIn(AVAILABILITY_FILTERS)
+  @IsOptional()
+  availability?: AvailabilityFilter;
+
+  @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   @IsOptional()
   featured?: boolean;
 
+  /**
+   * `recent | price_asc | price_desc | name | popular`.
+   * Les anciennes valeurs (`price`, `rating`, `createdAt`) restent acceptées et
+   * sont traduites : des clients déjà déployés les envoient encore.
+   */
   @IsString()
   @IsOptional()
-  sort?: 'price' | 'rating' | 'createdAt' = 'createdAt';
+  sort?: string;
 
+  /** @deprecated Sens du tri, absorbé par `sort` (`price_asc`, `price_desc`). */
   @IsString()
   @IsOptional()
-  dir?: 'asc' | 'desc' = 'desc';
+  dir?: 'asc' | 'desc';
 
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @IsOptional()
-  page?: number = 1;
+  @Min(1)
+  page?: number;
 
+  /** Plafonné à 60 côté service, quelle que soit la valeur reçue. */
   @Type(() => Number)
-  @IsNumber()
+  @IsInt()
   @IsOptional()
-  limit?: number = 12;
+  @Min(1)
+  perPage?: number;
+
+  /** @deprecated Remplacé par `perPage`. */
+  @Type(() => Number)
+  @IsInt()
+  @IsOptional()
+  @Min(1)
+  limit?: number;
 }

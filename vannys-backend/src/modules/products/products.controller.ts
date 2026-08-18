@@ -45,6 +45,14 @@ export class ProductsController {
     return this.productsService.findAll(filters);
   }
 
+  // Déclarée AVANT `:slug` : « filters » serait sinon pris pour un slug produit.
+  @Public()
+  @Get('filters')
+  @ApiOperation({ summary: 'Valeurs de filtre réellement disponibles (public)' })
+  findFilters() {
+    return this.productsService.findFilters();
+  }
+
   @Public()
   @Get(':slug')
   @ApiOperation({ summary: 'Get product by slug (public)' })

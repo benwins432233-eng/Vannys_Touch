@@ -1,13 +1,30 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { useProducts } from '@/hooks/use-products';
-import { useQuery } from '@tanstack/react-query';
-import { categoriesApi } from '@/api/categories.api';
+import { useCatalogFilters, useProducts } from '@/hooks/use-products';
 import { ProductCard } from '@/components/products/ProductCard';
-import { Button, Card, EmptyState, InputField, SelectField, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Drawer,
+  EmptyState,
+  SelectField,
+  Skeleton,
+} from '@/components/ui';
 import { cn } from '@/utils';
-import type { ProductFilters } from '@/types';
+import type { AvailabilityFilter, ProductFilters, ProductSort } from '@/types';
+
+const SORT_OPTIONS: { value: ProductSort; label: string }[] = [
+  { value: 'recent', label: 'Plus récents' },
+  { value: 'popular', label: 'Les plus vendus' },
+  { value: 'price_asc', label: 'Prix croissant' },
+  { value: 'price_desc', label: 'Prix décroissant' },
+  { value: 'name', label: 'Nom (A → Z)' },
+];
+
+const AVAILABILITY_OPTIONS: { value: AvailabilityFilter; label: string }[] = [
+  { value: 'in_stock', label: 'En stock' },
+  { value: 'out_of_stock', label: 'Épuisé' },
+];
 
 export function ProductsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -16,19 +33,18 @@ export function ProductsPage() {
   const filters: ProductFilters = {
     category: searchParams.get('category') || undefined,
     search: searchParams.get('search') || undefined,
+    size: searchParams.get('size') || undefined,
+    color: searchParams.get('color') || undefined,
+    availability: (searchParams.get('availability') as AvailabilityFilter) || undefined,
     minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : undefined,
     maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined,
-    sort: (searchParams.get('sort') as ProductFilters['sort']) || 'createdAt',
-    dir: (searchParams.get('dir') as ProductFilters['dir']) || 'desc',
+    sort: (searchParams.get('sort') as ProductSort) || 'recent',
     page: Number(searchParams.get('page') || 1),
-    limit: 12,
+    perPage: 12,
   };
 
   const { data, isLoading } = useProducts(filters);
-  const { data: categories } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.getAll,
-  });
+  const { data: catalog } = useCatalogFilters();
 
   const setParam = (key: string, value: string | undefined) => {
     const next = new URLSearchParams(searchParams);
@@ -38,12 +54,24 @@ export function ProductsPage() {
     setSearchParams(next);
   };
 
+  /** Bascule : cliquer sur la valeur déjà sélectionnée la retire. */
+  const toggleParam = (key: string, value: string) =>
+    setParam(key, searchParams.get(key) === value ? undefined : value);
+
   const clearFilters = () => setSearchParams({});
 
-  const hasFilters = filters.category || filters.search || filters.minPrice || filters.maxPrice;
+  const hasFilters = Boolean(
+    filters.category ||
+      filters.search ||
+      filters.size ||
+      filters.color ||
+      filters.availability ||
+      filters.minPrice ||
+      filters.maxPrice,
+  );
 
   const categoryName =
-    categories?.find((c) => c.slug === filters.category)?.name ?? filters.category;
+    catalog?.categories.find((c) => c.slug === filters.category)?.name ?? filters.category;
 
   return (
     <div className="section">
@@ -77,70 +105,27 @@ export function ProductsPage() {
             {/* Tri */}
             <select
               aria-label="Trier les produits"
-              value={`${filters.sort}-${filters.dir}`}
-              onChange={(e) => {
-                const [sort, dir] = e.target.value.split('-');
-                const next = new URLSearchParams(searchParams);
-                next.set('sort', sort);
-                next.set('dir', dir);
-                next.delete('page');
-                setSearchParams(next);
-              }}
+              value={filters.sort}
+              onChange={(e) => setParam('sort', e.target.value)}
               className="input w-auto py-2.5"
             >
-              <option value="createdAt-desc">Plus récents</option>
-              <option value="price-asc">Prix croissant</option>
-              <option value="price-desc">Prix décroissant</option>
-              <option value="rating-desc">Mieux notés</option>
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
             {/* Panneau de filtres */}
             <Button
-              variant={showFilters ? 'primary' : 'outline'}
-              onClick={() => setShowFilters((v) => !v)}
-              aria-expanded={showFilters}
-              aria-controls="panneau-filtres"
+              variant={hasFilters ? 'primary' : 'outline'}
+              onClick={() => setShowFilters(true)}
+              aria-haspopup="dialog"
               leftIcon={<SlidersHorizontal className="w-4 h-4" aria-hidden="true" />}
             >
               Filtres
             </Button>
           </div>
         </div>
-
-        {/* Filtres */}
-        {showFilters && (
-          <Card id="panneau-filtres" className="p-5 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <SelectField
-                label="Catégorie"
-                value={filters.category || ''}
-                onChange={(e) => setParam('category', e.target.value || undefined)}
-              >
-                <option value="">Toutes</option>
-                {categories?.map((c) => (
-                  <option key={c.id} value={c.slug}>
-                    {c.name}
-                  </option>
-                ))}
-              </SelectField>
-              <InputField
-                label="Prix minimum (FCFA)"
-                type="number"
-                min={0}
-                placeholder="0"
-                defaultValue={filters.minPrice}
-                onBlur={(e) => setParam('minPrice', e.target.value || undefined)}
-              />
-              <InputField
-                label="Prix maximum (FCFA)"
-                type="number"
-                min={0}
-                placeholder="Sans limite"
-                defaultValue={filters.maxPrice}
-                onBlur={(e) => setParam('maxPrice', e.target.value || undefined)}
-              />
-            </div>
-          </Card>
-        )}
 
         {/* Filtres actifs */}
         {hasFilters && (
@@ -152,6 +137,21 @@ export function ProductsPage() {
               <FilterChip
                 label={`« ${filters.search} »`}
                 onRemove={() => setParam('search', undefined)}
+              />
+            )}
+            {filters.size && (
+              <FilterChip label={`Taille ${filters.size}`} onRemove={() => setParam('size', undefined)} />
+            )}
+            {filters.color && (
+              <FilterChip
+                label={`Couleur ${filters.color}`}
+                onRemove={() => setParam('color', undefined)}
+              />
+            )}
+            {filters.availability && (
+              <FilterChip
+                label={AVAILABILITY_OPTIONS.find((o) => o.value === filters.availability)?.label ?? ''}
+                onRemove={() => setParam('availability', undefined)}
               />
             )}
             {filters.minPrice !== undefined && (
@@ -234,6 +234,143 @@ export function ProductsPage() {
           </nav>
         )}
       </div>
+
+      {/* Panneau de filtres — tiroir, y compris sur ordinateur : les mêmes
+          contrôles servent sur tous les formats, sans dupliquer le balisage
+          entre un panneau en ligne et un tiroir mobile. */}
+      <Drawer
+        open={showFilters}
+        onClose={() => setShowFilters(false)}
+        title="Filtrer les produits"
+        description="Affinez le catalogue par catégorie, taille, couleur, disponibilité ou budget."
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button variant="ghost" className="flex-1" onClick={clearFilters}>
+              Tout effacer
+            </Button>
+            <Button className="flex-1" onClick={() => setShowFilters(false)}>
+              Voir {data?.meta.total ?? ''} résultat(s)
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          <SelectField
+            label="Catégorie"
+            value={filters.category || ''}
+            onChange={(e) => setParam('category', e.target.value || undefined)}
+          >
+            <option value="">Toutes</option>
+            {catalog?.categories.map((c) => (
+              <option key={c.id} value={c.slug}>
+                {c.name} ({c.productCount})
+              </option>
+            ))}
+          </SelectField>
+
+          {!!catalog?.sizes.length && (
+            <fieldset>
+              <legend className="label mb-2">Taille</legend>
+              <div className="flex flex-wrap gap-2">
+                {catalog.sizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={filters.size === size}
+                    onClick={() => toggleParam('size', size)}
+                    className={cn(
+                      'min-w-11 h-11 px-3 rounded-token border-2 text-sm font-medium transition-colors',
+                      filters.size === size
+                        ? 'border-accent bg-accent/10 text-foreground'
+                        : 'border-border text-muted-foreground hover:border-accent/60 hover:text-foreground',
+                    )}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          {!!catalog?.colors.length && (
+            <fieldset>
+              <legend className="label mb-2">Couleur</legend>
+              <div className="flex flex-wrap gap-2">
+                {catalog.colors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    aria-pressed={filters.color === color}
+                    onClick={() => toggleParam('color', color)}
+                    className={cn(
+                      'px-3 h-11 rounded-token border-2 text-sm transition-colors',
+                      filters.color === color
+                        ? 'border-accent bg-accent/10 text-foreground font-medium'
+                        : 'border-border text-muted-foreground hover:border-accent/60 hover:text-foreground',
+                    )}
+                  >
+                    {color}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
+          <fieldset>
+            <legend className="label mb-2">Disponibilité</legend>
+            <div className="flex flex-wrap gap-2">
+              {AVAILABILITY_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={filters.availability === option.value}
+                  onClick={() => toggleParam('availability', option.value)}
+                  className={cn(
+                    'px-3 h-11 rounded-token border-2 text-sm transition-colors',
+                    filters.availability === option.value
+                      ? 'border-accent bg-accent/10 text-foreground font-medium'
+                      : 'border-border text-muted-foreground hover:border-accent/60 hover:text-foreground',
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="label mb-2">
+              Budget (FCFA){' '}
+              {!!catalog?.priceRange.max && (
+                <span className="text-muted-foreground font-normal">
+                  — de {catalog.priceRange.min.toLocaleString('fr-FR')} à{' '}
+                  {catalog.priceRange.max.toLocaleString('fr-FR')}
+                </span>
+              )}
+            </legend>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="number"
+                min={0}
+                aria-label="Prix minimum"
+                placeholder="Min"
+                defaultValue={filters.minPrice}
+                onBlur={(e) => setParam('minPrice', e.target.value || undefined)}
+                className="input"
+              />
+              <input
+                type="number"
+                min={0}
+                aria-label="Prix maximum"
+                placeholder="Max"
+                defaultValue={filters.maxPrice}
+                onBlur={(e) => setParam('maxPrice', e.target.value || undefined)}
+                className="input"
+              />
+            </div>
+          </fieldset>
+        </div>
+      </Drawer>
     </div>
   );
 }

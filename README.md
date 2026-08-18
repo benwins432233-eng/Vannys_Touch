@@ -372,6 +372,45 @@ instances, une modification met au plus une minute à se propager partout.
 > leurs valeurs telles quelles, donc rien n'a changé pour les clientes le jour
 > du déploiement.
 
+## Catalogue avancé
+
+Le catalogue public n'avait ni filtre par taille ou couleur, ni tri autre que la
+date de création, ni pagination réellement bornée : au-delà d'une cinquantaine
+d'articles, la boutique devenait inexploitable.
+
+`GET /api/v1/products` accepte désormais :
+
+| Paramètre | Rôle |
+| --- | --- |
+| `search` | Nom, description **et référence** produit |
+| `category` | Slug de catégorie |
+| `size`, `color` | Doivent porter sur la **même variante** — `size=M&color=Rouge` ne remonte jamais un produit qui n'a du M qu'en bleu |
+| `minPrice`, `maxPrice` | Bornes de prix |
+| `availability` | `in_stock` \| `out_of_stock` |
+| `sort` | `recent` \| `price_asc` \| `price_desc` \| `name` \| `popular` (ventes réelles, pas une note que personne ne saisit) |
+| `featured` | Coups de cœur |
+| `page`, `perPage` | Pagination, `perPage` plafonné à 60 |
+
+`GET /api/v1/products/filters` renvoie les valeurs **réellement présentes** au
+catalogue actif — catégories avec effectif, tailles, couleurs, bornes de prix —
+pour ne jamais proposer un filtre qui viderait la page. Le catalogue public
+n'expose jamais un produit désactivé, quels que soient les paramètres reçus :
+`isActive: true` est posé en premier dans la clause de recherche et n'est
+surchargeable par aucun filtre.
+
+Les anciens paramètres `sort=price&dir=asc`, `sort=rating`, `sort=createdAt` et
+`limit` restent acceptés et traduits — des clients déjà déployés les envoient
+encore.
+
+Chaque tri porte un second critère sur l'identifiant du produit
+(`orderByFor` dans `product-filters.ts`) : sans lui, deux produits au même prix
+pouvaient échanger leur position d'une page à l'autre, et un article apparaissait
+deux fois ou disparaissait selon la page consultée.
+
+Côté boutique : tiroir de filtres (mobile comme ordinateur), puces de filtres
+actifs retirables individuellement, tri, pagination, état vide explicite,
+squelettes de chargement.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)
@@ -419,7 +458,8 @@ instances, une modification met au plus une minute à se propager partout.
 ### Produits `/api/v1/products`
 | Méthode | Route | Auth |
 |---------|-------|------|
-| GET | `/` | Public |
+| GET | `/` (filtres, tri, pagination — voir ci-dessous) | Public |
+| GET | `/filters` | Public |
 | GET | `/:slug` | Public |
 | POST | `/` | Admin |
 | PATCH | `/:id` | Admin |

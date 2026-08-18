@@ -20,6 +20,18 @@ export const useProduct = (slug: string) =>
     staleTime: 5 * 60 * 1000,
   });
 
+/**
+ * Valeurs de filtre réellement disponibles (tailles, couleurs, catégories avec
+ * effectif, bornes de prix). Change rarement : gardé longtemps en cache plutôt
+ * que relu à chaque ouverture du panneau de filtres.
+ */
+export const useCatalogFilters = () =>
+  useQuery({
+    queryKey: [PRODUCTS_KEY, 'filters'],
+    queryFn: productsApi.getFilters,
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useCreateProduct = () => {
   const qc = useQueryClient();
   return useMutation({

@@ -280,21 +280,38 @@ export interface PaginatedResponse<T> {
   meta: {
     total: number;
     page: number;
+    /** @deprecated Alias de `perPage`, conservé pour les lecteurs déjà déployés. */
     limit: number;
     lastPage: number;
+    perPage?: number;
+    sort?: ProductSort;
   };
 }
 
 // ─── Product filter params ─────────────────────────────────────
 
+/** Valeurs alignées sur `product-filters.ts` côté serveur. */
+export type ProductSort = 'recent' | 'price_asc' | 'price_desc' | 'name' | 'popular';
+export type AvailabilityFilter = 'in_stock' | 'out_of_stock';
+
 export interface ProductFilters {
   category?: string;
   search?: string;
+  size?: string;
+  color?: string;
   minPrice?: number;
   maxPrice?: number;
+  availability?: AvailabilityFilter;
   featured?: boolean;
-  sort?: 'price' | 'rating' | 'createdAt';
-  dir?: 'asc' | 'desc';
+  sort?: ProductSort;
   page?: number;
-  limit?: number;
+  perPage?: number;
+}
+
+/** Valeurs de filtre réellement disponibles au catalogue, servies par l'API. */
+export interface CatalogFilterOptions {
+  categories: { id: string; name: string; slug: string; productCount: number }[];
+  sizes: string[];
+  colors: string[];
+  priceRange: { min: number; max: number };
 }
