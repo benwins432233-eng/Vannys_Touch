@@ -9,7 +9,13 @@ export interface CreateOrderPayload {
   deliveryDistrict: string;
   deliveryAddress: string;
   deliveryLandmark?: string;
-  items: Array<{
+  /**
+   * Le contenu de la commande vient du panier serveur depuis le lot L3 : le
+   * client n'envoie plus de lignes. Le champ reste dans le type pour les
+   * appelants qui n'ont pas encore migré.
+   * @deprecated
+   */
+  items?: Array<{
     productId: string;
     quantity: number;
     color?: string;
@@ -30,6 +36,11 @@ export const ordersApi = {
 
   create: async (data: CreateOrderPayload): Promise<Order> => {
     const res = await apiClient.post('/orders', data);
+    return res.data.data;
+  },
+
+  cancel: async (id: string, comment?: string): Promise<Order> => {
+    const res = await apiClient.post(`/orders/${id}/cancel`, { comment });
     return res.data.data;
   },
 
@@ -55,9 +66,15 @@ export const ordersApi = {
     return res.data.data;
   },
 
+  /** Détail admin : lignes, historique et transitions autorisées. */
+  getByIdForAdmin: async (id: string): Promise<Order> => {
+    const res = await apiClient.get(`/orders/admin/${id}`);
+    return res.data.data;
+  },
+
   updateStatus: async (
     id: string,
-    data: { status: OrderStatus; trackingNumber?: string },
+    data: { status: OrderStatus; trackingNumber?: string; comment?: string },
   ): Promise<Order> => {
     const res = await apiClient.patch(`/orders/admin/${id}/status`, data);
     return res.data.data;

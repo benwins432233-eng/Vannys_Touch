@@ -1,13 +1,26 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronLeft, Package, MapPin, Truck, Phone } from 'lucide-react';
-import { useOrder } from '@/hooks/use-orders';
+import { useCancelOrder, useOrder } from '@/hooks/use-orders';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { formatPrice, formatDateTime } from '@/utils';
-import { Card, ErrorState, LinkButton, Skeleton } from '@/components/ui';
+import {
+  Button,
+  Card,
+  Dialog,
+  ErrorState,
+  LinkButton,
+  Skeleton,
+  TextareaField,
+} from '@/components/ui';
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: order, isLoading, isError, refetch } = useOrder(id!);
+  const { mutate: cancelOrder, isPending: isCancelling } = useCancelOrder();
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [reason, setReason] = useState('');
 
   if (isLoading) {
     return (
@@ -51,6 +64,11 @@ export function OrderDetailPage() {
         </div>
 
         <div className="space-y-5">
+          {/* Suivi */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-5">Suivi de votre commande</h2>
+            <OrderTimeline status={order.status} history={order.statusHistory} />
+          </Card>
           {/* Articles */}
           <Card className="p-6">
             <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
@@ -147,7 +165,64 @@ export function OrderDetailPage() {
               <p className="text-sm text-muted-foreground">{order.notes}</p>
             </Card>
           )}
+
+          {/* Annulation — proposée seulement quand le serveur l'autorise, pour
+              ne jamais offrir un geste qui finirait en erreur. */}
+          {order.canCancel && (
+            <Card className="p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="font-semibold text-foreground">Annuler cette commande</h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Possible tant que la préparation n'a pas commencé.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setCancelOpen(true)}>
+                Annuler la commande
+              </Button>
+            </Card>
+          )}
         </div>
+
+        <Dialog
+          open={cancelOpen}
+          onClose={() => setCancelOpen(false)}
+          title="Annuler la commande"
+          description={`La commande ${order.reference} sera annulée et les articles remis en vente. Cette action est définitive.`}
+          footer={
+            <div className="flex gap-3 w-full">
+              <Button
+                type="button"
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setCancelOpen(false)}
+              >
+                Revenir
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="flex-1"
+                isLoading={isCancelling}
+                onClick={() =>
+                  cancelOrder(
+                    { id: order.id, comment: reason || undefined },
+                    { onSuccess: () => setCancelOpen(false) },
+                  )
+                }
+              >
+                Confirmer l'annulation
+              </Button>
+            </div>
+          }
+        >
+          <TextareaField
+            label="Motif"
+            hint="Facultatif — cela nous aide à nous améliorer."
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          />
+        </Dialog>
       </div>
     </div>
   );

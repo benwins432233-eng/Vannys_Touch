@@ -12,7 +12,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
-import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
+import {
+  CancelOrderDto,
+  CreateOrderDto,
+  UpdateOrderStatusDto,
+  OrderFilterDto,
+} from './dto/order.dto';
 import { AdminGuard } from '../../common/guards/admin.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { User } from '@prisma/client';
@@ -42,6 +47,16 @@ export class OrdersController {
     return this.ordersService.create(user.id.toString(), dto);
   }
 
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Annuler sa propre commande (états pending et confirmed)' })
+  cancel(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.ordersService.cancelByClient(id, user.id.toString(), dto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get order by ID (owner or admin)' })
   findOne(@CurrentUser() user: User, @Param('id') id: string) {
@@ -64,10 +79,23 @@ export class OrdersController {
     return this.ordersService.getStats();
   }
 
+  // Déclarée APRÈS `admin/all` et `admin/stats` : sinon `:id` capterait ces
+  // deux routes littérales, qui sont également en deux segments.
+  @Get('admin/:id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: '[Admin] Détail, historique et transitions autorisées' })
+  adminFindOne(@Param('id') id: string) {
+    return this.ordersService.findOneForAdmin(id);
+  }
+
   @Patch('admin/:id/status')
   @UseGuards(AdminGuard)
   @ApiOperation({ summary: '[Admin] Update order status' })
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
-    return this.ordersService.updateStatus(id, dto);
+  updateStatus(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ) {
+    return this.ordersService.updateStatus(id, dto, user.id.toString());
   }
 }

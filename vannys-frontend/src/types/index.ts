@@ -127,8 +127,32 @@ export interface ServerCart {
 
 // ─── Orders ────────────────────────────────────────────────────
 
-// Valeurs de l'enum MySQL orders_status
-export type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+// Valeurs de l'enum MySQL orders_status. `processing` signifie « en préparation » :
+// la valeur existait avant le lot L3 et n'a pas été renommée, MySQL stockant
+// l'indice d'un ENUM et non son texte.
+export type OrderStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'processing'
+  | 'shipping'
+  | 'delivery_failed'
+  | 'delivered'
+  | 'cancelled';
+
+/** Une étape de la vie d'une commande. */
+export interface OrderStatusHistoryEntry {
+  id: string;
+  status: OrderStatus;
+  comment?: string | null;
+  createdAt: string;
+  changedBy?: { id: string; firstName: string; lastName: string } | null;
+}
+
+/** Transition proposée par le serveur depuis l'état courant. */
+export interface OrderTransition {
+  status: OrderStatus;
+  label: string;
+}
 
 export interface OrderItem {
   id: string;
@@ -146,6 +170,12 @@ export interface Order {
   id: string;
   reference: string;
   status: OrderStatus;
+  cancelledAt?: string | null;
+  /** Présent sur le détail : le serveur dit si l'annulation est encore possible. */
+  canCancel?: boolean;
+  statusHistory?: OrderStatusHistoryEntry[];
+  /** Présent sur `GET /orders/admin/:id` uniquement. */
+  allowedTransitions?: OrderTransition[];
   notes?: string;
   subtotal: number;
   shippingFee: number;

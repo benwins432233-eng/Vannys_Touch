@@ -75,8 +75,10 @@ export const formatDateTime = (date: string | number | Date): string => {
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'En attente',
-  processing: 'En traitement',
-  shipped: 'Expédiée',
+  confirmed: 'Confirmée',
+  processing: 'En préparation',
+  shipping: 'En livraison',
+  delivery_failed: 'Livraison échouée',
   delivered: 'Livrée',
   cancelled: 'Annulée',
 };
@@ -84,11 +86,26 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 /** Teintes des jetons de conception — lisibles en thème clair comme sombre. */
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   pending: 'bg-warning/15 text-warning',
+  confirmed: 'bg-accent/20 text-foreground',
   processing: 'bg-accent/20 text-foreground',
-  shipped: 'bg-accent/20 text-foreground',
+  shipping: 'bg-accent/20 text-foreground',
+  delivery_failed: 'bg-destructive/15 text-destructive',
   delivered: 'bg-success/15 text-success',
   cancelled: 'bg-destructive/15 text-destructive',
 };
+
+/**
+ * Étapes normales d'une commande, dans l'ordre, pour la frise de suivi.
+ * `delivery_failed` et `cancelled` en sont absents : ce sont des sorties de
+ * route, affichées à part plutôt que comme une étape à franchir.
+ */
+export const ORDER_TIMELINE: OrderStatus[] = [
+  'pending',
+  'confirmed',
+  'processing',
+  'shipping',
+  'delivered',
+];
 
 export const getDiscountPercent = (price: number, originalPrice: number): number => {
   if (!originalPrice || originalPrice <= price) return 0;

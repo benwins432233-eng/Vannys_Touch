@@ -11,7 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { orders_status } from '@prisma/client';
+import { orders_payment_method, orders_status } from '@prisma/client';
 
 export class OrderItemDto {
   // Les IDs MySQL sont des BigInt sérialisés en string numérique (ex: "123456")
@@ -39,6 +39,14 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  /**
+   * Mode de règlement. Le paiement à la livraison est le mode par défaut ; les
+   * modes mobile money restent acceptés. Le tunnel n'en dépend pas.
+   */
+  @IsEnum(orders_payment_method)
+  @IsOptional()
+  paymentMethod?: orders_payment_method;
 
   @IsString()
   @IsNotEmpty()
@@ -69,10 +77,23 @@ export class CreateOrderDto {
   @MaxLength(255)
   deliveryLandmark?: string;
 
+  /**
+   * @deprecated Le contenu de la commande vient du panier serveur depuis le lot
+   * L3. Ce champ n'est utilisé que si le panier est vide, pour les clients déjà
+   * déployés, et ne peut jamais fixer un prix.
+   */
   @IsArray()
+  @IsOptional()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
-  items: OrderItemDto[];
+  items?: OrderItemDto[];
+}
+
+export class CancelOrderDto {
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  comment?: string;
 }
 
 export class UpdateOrderStatusDto {
@@ -83,6 +104,12 @@ export class UpdateOrderStatusDto {
   @IsOptional()
   @MaxLength(100)
   trackingNumber?: string;
+
+  /** Motif ou précision, conservé dans l'historique. */
+  @IsString()
+  @IsOptional()
+  @MaxLength(500)
+  comment?: string;
 }
 
 export class OrderFilterDto {

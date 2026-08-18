@@ -22,6 +22,14 @@ export const useOrder = (id: string) =>
     enabled: !!id,
   });
 
+/** Détail administration : inclut l'historique et les transitions permises. */
+export const useAdminOrder = (id?: string) =>
+  useQuery({
+    queryKey: [ORDERS_KEY, 'admin', 'detail', id],
+    queryFn: () => ordersApi.getByIdForAdmin(id!),
+    enabled: !!id,
+  });
+
 export const useCreateOrder = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -40,6 +48,20 @@ export const useCreateOrder = () => {
     onError: (error) => {
       toast.error(getErrorMessage(error, 'Erreur lors de la commande'));
     },
+  });
+};
+
+/** Annulation par la cliente — le serveur refuse au-delà de « Confirmée ». */
+export const useCancelOrder = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, comment }: { id: string; comment?: string }) =>
+      ordersApi.cancel(id, comment),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [ORDERS_KEY] });
+      toast.success('Commande annulée.');
+    },
+    onError: (error) => toast.error(getErrorMessage(error)),
   });
 };
 
@@ -64,12 +86,21 @@ export const useOrderStats = () =>
 export const useUpdateOrderStatus = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...data }: { id: string; status: OrderStatus; trackingNumber?: string }) =>
-      ordersApi.updateStatus(id, data),
+    mutationFn: ({
+      id,
+      ...data
+    }: {
+      id: string;
+      status: OrderStatus;
+      trackingNumber?: string;
+      comment?: string;
+    }) => ordersApi.updateStatus(id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [ORDERS_KEY] });
       toast.success('Statut mis à jour !');
     },
-    onError: () => toast.error('Erreur lors de la mise à jour du statut'),
+    // Le serveur refuse une transition invalide en 400 : son message dit
+    // laquelle, il vaut mieux que « Erreur lors de la mise à jour ».
+    onError: (error) => toast.error(getErrorMessage(error)),
   });
 };

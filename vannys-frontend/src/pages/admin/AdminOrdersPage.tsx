@@ -1,7 +1,8 @@
 import { Fragment, useState } from 'react';
-import { Search, ChevronDown, Phone } from 'lucide-react';
-import { useAllOrders, useUpdateOrderStatus } from '@/hooks/use-orders';
+import { Search, ChevronDown } from 'lucide-react';
+import { useAllOrders } from '@/hooks/use-orders';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
+import { AdminOrderPanel } from '@/components/orders/AdminOrderPanel';
 import { formatPrice, formatDate, ORDER_STATUS_LABELS, cn } from '@/utils';
 import {
   Button,
@@ -13,29 +14,24 @@ import {
   Td,
   Tr,
 } from '@/components/ui';
-import type { OrderStatus, Order } from '@/types';
+import type { OrderStatus } from '@/types';
 
-// Valeurs minuscules correspondant à l'enum MySQL orders_status
-const STATUSES: OrderStatus[] = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
+// Valeurs minuscules correspondant à l'enum MySQL orders_status.
+// Sert uniquement au filtre : les actions possibles sur une commande viennent
+// du serveur, qui seul connaît les transitions permises depuis l'état courant.
+const STATUSES = Object.keys(ORDER_STATUS_LABELS) as OrderStatus[];
 
 export function AdminOrdersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | undefined>();
   const [page, setPage] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [trackingInput, setTrackingInput] = useState('');
 
   const { data, isLoading } = useAllOrders({
     search: search || undefined,
     status: statusFilter,
     page,
   });
-  const { mutate: updateStatus, isPending: isUpdating } = useUpdateOrderStatus();
-
-  const handleStatusChange = (order: Order, status: OrderStatus) => {
-    updateStatus({ id: order.id, status, trackingNumber: trackingInput || undefined });
-    setTrackingInput('');
-  };
 
   const toggleRow = (id: string) => setExpandedId((current) => (current === id ? null : id));
 
@@ -162,93 +158,7 @@ export function AdminOrdersPage() {
                   {expanded && (
                     <tr id={panelId}>
                       <td colSpan={6} className="px-4 py-4 bg-muted/60">
-                        <div className="grid md:grid-cols-2 gap-6">
-                          {/* Articles */}
-                          <div>
-                            <h2 className="font-semibold text-foreground mb-2">Articles</h2>
-                            <div className="space-y-1.5">
-                              {order.items.map((item) => (
-                                <div
-                                  key={item.id}
-                                  className="flex justify-between gap-3 text-sm text-muted-foreground"
-                                >
-                                  <span>
-                                    {item.productName} × {item.quantity}
-                                    {(item.variantColor || item.variantSize) &&
-                                      ` (${[item.variantColor, item.variantSize]
-                                        .filter(Boolean)
-                                        .join(' / ')})`}
-                                  </span>
-                                  <span className="font-medium text-foreground whitespace-nowrap">
-                                    {formatPrice(item.subtotal)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-3 pt-2 border-t border-border">
-                              <p className="text-sm font-bold text-foreground flex justify-between">
-                                <span>Total</span>
-                                <span>{formatPrice(order.total)}</span>
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Livraison et statut */}
-                          <div>
-                            <h2 className="font-semibold text-foreground mb-2">Livraison</h2>
-                            <div className="text-sm text-muted-foreground space-y-0.5">
-                              <p className="font-medium text-foreground">
-                                {order.deliveryFullName}
-                              </p>
-                              <p>
-                                {order.deliveryDistrict}, {order.deliveryCity}
-                              </p>
-                              <p>{order.deliveryAddress}</p>
-                              <p className="flex items-center gap-1.5">
-                                <Phone className="w-3.5 h-3.5" aria-hidden="true" />
-                                {order.deliveryPhone}
-                              </p>
-                            </div>
-
-                            <div className="mt-4 space-y-2">
-                              <h2 className="font-semibold text-foreground text-sm">
-                                Changer le statut
-                              </h2>
-                              <input
-                                type="text"
-                                aria-label="Numéro de suivi"
-                                placeholder="N° de suivi (optionnel)"
-                                value={trackingInput}
-                                onChange={(e) => setTrackingInput(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                className="input text-sm py-2"
-                              />
-                              <div className="flex flex-wrap gap-2">
-                                {STATUSES.map((s) => (
-                                  <button
-                                    key={s}
-                                    type="button"
-                                    disabled={order.status === s || isUpdating}
-                                    aria-current={order.status === s}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleStatusChange(order, s);
-                                    }}
-                                    className={cn(
-                                      'px-3 py-1.5 rounded-token text-xs font-medium border transition-colors',
-                                      'disabled:opacity-50 disabled:pointer-events-none',
-                                      order.status === s
-                                        ? 'bg-muted text-muted-foreground border-border'
-                                        : 'border-border text-foreground hover:bg-accent/15 hover:border-accent',
-                                    )}
-                                  >
-                                    {ORDER_STATUS_LABELS[s]}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <AdminOrderPanel order={order} />
                       </td>
                     </tr>
                   )}

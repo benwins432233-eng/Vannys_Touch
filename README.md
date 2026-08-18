@@ -192,6 +192,53 @@ Hors connexion, le panier reste dans le navigateur (`cart.store.ts`). Le hook
 `useCart()` expose une vue unique des deux mondes : les pages n'ont pas à savoir
 où vit le panier.
 
+## Cycle de vie d'une commande
+
+Depuis le lot L3, le statut d'une commande n'est plus une valeur écrasée sur
+place : chaque changement est tracé dans `order_status_history` (état, date,
+auteur, commentaire), et seules les transitions ci-dessous sont acceptées.
+Toute autre est refusée en **400**.
+
+```
+pending    → confirmed | cancelled
+confirmed  → processing | cancelled
+processing → shipping | cancelled
+shipping   → delivered | delivery_failed | cancelled
+delivery_failed → shipping | cancelled
+delivered, cancelled : terminaux
+```
+
+`processing` signifie « en préparation ». La valeur existait déjà et n'a pas été
+renommée : MySQL stocke l'**indice** d'une valeur d'ENUM, pas son texte, donc
+renommer ou réordonner réinterpréterait les commandes existantes. Les trois
+nouveaux états sont ajoutés en fin de liste.
+
+**Création** (`POST /api/v1/orders`) — une seule transaction : verrouillage des
+variantes (`SELECT … FOR UPDATE`), vérification du stock, recalcul des montants
+depuis la base, écriture de la commande, des lignes (instantané nom + image +
+prix unitaire) et de l'état initial, décrément du stock, puis vidage du panier.
+Le contenu vient du **panier serveur** ; le champ `items` de la requête est
+`@deprecated` et n'est lu que si le panier est vide. Erreurs : `400` panier vide
+ou déclinaison retirée, `409` stock insuffisant (l'article est nommé).
+
+**Annulation par la cliente** (`POST /api/v1/orders/:id/cancel`) — permise
+seulement en `pending` et `confirmed`. Le stock n'est restitué qu'une fois :
+`stock_restored_at` sert de verrou d'idempotence.
+
+**Administration** — `GET /api/v1/orders/admin/:id` renvoie le détail,
+l'historique **et les transitions autorisées** depuis l'état courant, pour que
+l'interface ne propose jamais une action que l'API refusera.
+
+**Références** — les nouvelles commandes prennent le format
+`CMD-AAAAMMJJ-XXXXXX`, suffixe tiré au sort. L'ancien `count() + 1` donnait la
+même référence à deux commandes simultanées. Les références déjà émises
+(`VT-00001`) ne sont pas réécrites : elles figurent dans les emails envoyés.
+
+**Paiement** — le paiement à la livraison (`CASH_ON_DELIVERY`) devient le mode
+par défaut, les modes mobile money restent acceptés. Jusqu'ici toute commande
+était enregistrée en `MTN` faute d'alternative, alors que le règlement se faisait
+déjà à la livraison.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)

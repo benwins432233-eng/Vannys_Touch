@@ -51,12 +51,8 @@ export function CheckoutPage() {
       ...form,
       notes: form.notes || undefined,
       deliveryLandmark: form.deliveryLandmark || undefined,
-      items: cart.lines.map((line) => ({
-        productId: line.productId,
-        quantity: line.quantity,
-        color: line.color ?? undefined,
-        size: line.size ?? undefined,
-      })),
+      // Aucune ligne envoyée : le serveur lit le panier, seul juge du contenu
+      // comme des montants (§2.3).
     });
   };
 

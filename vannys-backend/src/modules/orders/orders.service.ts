@@ -4,13 +4,29 @@ import {
   ForbiddenException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
-import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
-import { orders_status, users_role } from '@prisma/client';
+import {
+  CancelOrderDto,
+  CreateOrderDto,
+  OrderItemDto,
+  UpdateOrderStatusDto,
+  OrderFilterDto,
+} from './dto/order.dto';
+import { Prisma, orders_status, users_role } from '@prisma/client';
 import { findVariant, shippingFeeFor } from './order-rules';
+import {
+  allowedTransitionsFrom,
+  buildOrderReference,
+  canClientCancel,
+  canTransition,
+  ORDER_STATUS_LABELS,
+  restoresStock,
+} from './order-status';
 
 // Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
@@ -21,8 +37,26 @@ const toId = (id: string | number | bigint): bigint => {
   }
 };
 
+/** Ligne prête à être écrite : produit vérifié, prix relu en base. */
+interface ResolvedLine {
+  variantId: bigint;
+  productId: bigint;
+  productName: string;
+  productImageUrl: string | null;
+  unitPrice: Prisma.Decimal;
+  quantity: number;
+  subtotal: number;
+  variantColor: string | null;
+  variantSize: string | null;
+}
+
+const USER_SUMMARY = {
+  select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+} as const;
+
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
   private readonly freeShippingThreshold: number;
   private readonly shippingFee: number;
 
@@ -31,9 +65,12 @@ export class OrdersService {
     private readonly mail: MailService,
     config: ConfigService,
   ) {
+    // TODO (lot L6) : ces montants viendront de la table `settings`.
     this.freeShippingThreshold = config.get<number>('FREE_SHIPPING_THRESHOLD', 50000);
     this.shippingFee = config.get<number>('SHIPPING_FEE', 2500);
   }
+
+  // ── Lecture ───────────────────────────────────────────────────
 
   async findMyOrders(userId: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
@@ -61,7 +98,8 @@ export class OrdersService {
       where: { id: toId(id) },
       include: {
         items: true,
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        user: USER_SUMMARY,
+        statusHistory: { orderBy: { createdAt: 'asc' } },
       },
     });
 
@@ -72,102 +110,39 @@ export class OrdersService {
       throw new ForbiddenException('Access denied');
     }
 
-    return order;
+    // L'interface ne doit jamais proposer un geste que le serveur refusera.
+    return { ...order, canCancel: canClientCancel(order.status) };
   }
 
-  async create(userId: string, dto: CreateOrderDto) {
-    if (!dto.items?.length) throw new BadRequestException('Order must have at least one item');
-
-    let subtotal = 0;
-    const orderItems: any[] = [];
-
-    for (const item of dto.items) {
-      // Inclure les images et les variantes vendables dans la requête produit
-      const product = await this.prisma.product.findFirst({
-        where: { id: toId(item.productId), isActive: true },
-        include: {
-          images: { where: { isPrimary: true }, take: 1 },
-          variants: { where: { isActive: true } },
-        },
-      });
-
-      if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
-
-      // Le stock vit sur la variante depuis le lot L1 : c'est la combinaison
-      // commandée, et elle seule, qui décide si la ligne est vendable.
-      const variant = findVariant(product.variants, item.color, item.size);
-      if (!variant) {
-        throw new BadRequestException(
-          `La déclinaison choisie pour « ${product.name} » n'est plus proposée.`,
-        );
-      }
-      if (variant.stock < item.quantity) {
-        throw new ConflictException(
-          variant.stock === 0
-            ? `« ${product.name} » est épuisé.`
-            : `Il ne reste que ${variant.stock} article(s) de « ${product.name} ».`,
-        );
-      }
-
-      const lineTotal = Number(product.price) * item.quantity;
-      subtotal += lineTotal;
-
-      orderItems.push({
-        productId: product.id,
-        productName: product.name,
-        productImageUrl: product.images[0]?.url || null,
-        unitPrice: product.price,
-        quantity: item.quantity,
-        subtotal: lineTotal,
-        variantColor: item.color || null,
-        variantSize: item.size || null,
-      });
-    }
-
-    const shipping = shippingFeeFor(subtotal, this.freeShippingThreshold, this.shippingFee);
-    const reference = await this.generateReference();
-
-    const order = await this.prisma.order.create({
-      data: {
-        userId: toId(userId),
-        reference,
-        notes: dto.notes || null,
-        subtotal,
-        shippingFee: shipping,
-        total: subtotal + shipping,
-        // Champs obligatoires du schéma MySQL existant
-        payment_method: 'MTN',
-        phone_number: dto.deliveryPhone,
-        deliveryFullName: dto.deliveryFullName,
-        deliveryPhone: dto.deliveryPhone,
-        deliveryCity: dto.deliveryCity,
-        deliveryDistrict: dto.deliveryDistrict,
-        deliveryAddress: dto.deliveryAddress,
-        deliveryLandmark: dto.deliveryLandmark || null,
-        items: { create: orderItems },
-      },
+  /** Vue administration : détail, historique et transitions réellement permises. */
+  async findOneForAdmin(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: toId(id) },
       include: {
         items: true,
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
+        user: USER_SUMMARY,
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+          include: { changedBy: { select: { id: true, firstName: true, lastName: true } } },
+        },
       },
     });
+    if (!order) throw new NotFoundException('Order not found');
 
-    // La commande consomme le panier serveur : le laisser plein ferait
-    // recommander les mêmes articles au rechargement suivant.
-    await this.prisma.cartItem.deleteMany({ where: { cart: { userId: toId(userId) } } });
-
-    const orderWithUser = { ...order, user: order.user as any };
-    this.mail.sendOrderConfirmed(orderWithUser as any).catch(() => null);
-    this.mail.sendAdminNewOrder(orderWithUser as any).catch(() => null);
-
-    return order;
+    return {
+      ...order,
+      allowedTransitions: allowedTransitionsFrom(order.status).map((status) => ({
+        status,
+        label: ORDER_STATUS_LABELS[status],
+      })),
+    };
   }
 
   async findAll(filters: OrderFilterDto) {
     const { status, search, page = 1, limit = 20 } = filters;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     if (status) where.status = status;
     if (search) {
       // MySQL ne supporte pas mode:'insensitive' (c'est PostgreSQL)
@@ -200,38 +175,123 @@ export class OrdersService {
     };
   }
 
-  async updateStatus(id: string, dto: UpdateOrderStatusDto) {
+  // ── Création ──────────────────────────────────────────────────
+
+  /**
+   * Enregistre une commande dans une transaction unique.
+   *
+   * Tout se joue ici : verrouiller les variantes, vérifier le stock, recalculer
+   * les montants depuis la base, écrire la commande, décrémenter et vider le
+   * panier. Hors transaction, deux clientes achetant le dernier article en même
+   * temps repartaient toutes les deux avec une commande valide.
+   */
+  async create(userId: string, dto: CreateOrderDto) {
+    const userIdBigInt = toId(userId);
+    const requested = await this.resolveRequestedItems(userIdBigInt, dto.items);
+    if (!requested.length) throw new BadRequestException('Votre panier est vide.');
+
+    const reference = await this.generateReference();
+
+    const order = await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Verrouiller les variantes concernées pour la durée de la transaction.
+        const variantIds = requested.map((i) => i.variantId);
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM product_variants WHERE id IN (${Prisma.join(variantIds)}) FOR UPDATE`,
+        );
+
+        // 2. Relire produit, variante et stock une fois le verrou tenu.
+        const lines = await this.buildLines(tx, requested);
+
+        // 3. Recalculer les montants : rien de ce que le client envoie ne compte.
+        const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
+        const shipping = shippingFeeFor(subtotal, this.freeShippingThreshold, this.shippingFee);
+
+        // 4. Écrire la commande, ses lignes et son état initial.
+        const created = await tx.order.create({
+          data: {
+            userId: userIdBigInt,
+            reference,
+            status: 'pending',
+            notes: dto.notes || null,
+            subtotal,
+            shippingFee: shipping,
+            total: subtotal + shipping,
+            payment_method: dto.paymentMethod ?? 'CASH_ON_DELIVERY',
+            phone_number: dto.deliveryPhone,
+            deliveryFullName: dto.deliveryFullName,
+            deliveryPhone: dto.deliveryPhone,
+            deliveryCity: dto.deliveryCity,
+            deliveryDistrict: dto.deliveryDistrict,
+            deliveryAddress: dto.deliveryAddress,
+            deliveryLandmark: dto.deliveryLandmark || null,
+            items: { create: lines },
+            statusHistory: {
+              create: { status: 'pending', comment: 'Commande enregistrée' },
+            },
+          },
+          include: { items: true, user: USER_SUMMARY },
+        });
+
+        // 5. Décrémenter le stock. La condition `gte` est une seconde barrière :
+        //    si elle ne touche aucune ligne, c'est que le verrou a été contourné.
+        for (const line of lines) {
+          const updated = await tx.productVariant.updateMany({
+            where: { id: line.variantId, stock: { gte: line.quantity } },
+            data: { stock: { decrement: line.quantity } },
+          });
+          if (updated.count !== 1) {
+            throw new ConflictException(`« ${line.productName} » n'est plus disponible.`);
+          }
+        }
+
+        // 6. La commande consomme le panier.
+        await tx.cartItem.deleteMany({ where: { cart: { userId: userIdBigInt } } });
+
+        return created;
+      },
+      { timeout: 15000 },
+    );
+
+    const orderWithUser = { ...order, user: order.user as any };
+    this.mail.sendOrderConfirmed(orderWithUser as any).catch(() => null);
+    this.mail.sendAdminNewOrder(orderWithUser as any).catch(() => null);
+
+    return order;
+  }
+
+  // ── Changements d'état ────────────────────────────────────────
+
+  /**
+   * Annulation par la cliente. Autorisée tant que la commande n'est pas partie
+   * en préparation ; au-delà, l'administration seule sait ce qui a déjà bougé.
+   */
+  async cancelByClient(id: string, userId: string, dto: CancelOrderDto) {
     const orderId = toId(id);
-
-    const order = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      include: {
-        items: true,
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
-      },
-    });
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== toId(userId)) throw new ForbiddenException('Access denied');
 
-    const prevStatus = order.status;
-
-    const updated = await this.prisma.order.update({
-      where: { id: orderId },
-      data: {
-        status: dto.status,
-        ...(dto.trackingNumber && { trackingNumber: dto.trackingNumber }),
-      },
-      include: {
-        items: true,
-        user: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
-      },
-    });
-
-    // Envoyer l'email d'expédition une seule fois (le schéma n'a pas "shipped" — on utilise "processing")
-    if (dto.status === orders_status.processing && prevStatus !== orders_status.processing) {
-      this.mail.sendOrderShipped(updated as any).catch(() => null);
+    if (!canClientCancel(order.status)) {
+      throw new BadRequestException(
+        `Une commande « ${ORDER_STATUS_LABELS[order.status]} » ne peut plus être annulée. ` +
+          'Contactez-nous pour toute demande.',
+      );
     }
 
-    return updated;
+    return this.applyStatus(orderId, 'cancelled', {
+      comment: dto.comment || 'Annulée par la cliente',
+      changedByUserId: toId(userId),
+    });
+  }
+
+  /** Changement d'état par l'administration. */
+  async updateStatus(id: string, dto: UpdateOrderStatusDto, adminUserId?: string) {
+    return this.applyStatus(toId(id), dto.status, {
+      comment: dto.comment,
+      trackingNumber: dto.trackingNumber,
+      changedByUserId: adminUserId ? toId(adminUserId) : undefined,
+    });
   }
 
   async getStats() {
@@ -256,8 +316,187 @@ export class OrdersService {
 
   // ─── Private helpers ──────────────────────────────────────────
 
+  /**
+   * Applique une transition, écrit l'historique et rend le stock si besoin —
+   * le tout dans une transaction, pour qu'un état changé sans trace ou un stock
+   * rendu sans annulation soient impossibles.
+   */
+  private async applyStatus(
+    orderId: bigint,
+    next: orders_status,
+    options: { comment?: string; trackingNumber?: string; changedByUserId?: bigint },
+  ) {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findUnique({
+        where: { id: orderId },
+        include: { items: true },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+
+      if (order.status === next) {
+        throw new BadRequestException(
+          `La commande est déjà « ${ORDER_STATUS_LABELS[next]} ».`,
+        );
+      }
+      if (!canTransition(order.status, next)) {
+        throw new BadRequestException(
+          `Transition impossible : « ${ORDER_STATUS_LABELS[order.status]} » ` +
+            `ne peut pas devenir « ${ORDER_STATUS_LABELS[next]} ».`,
+        );
+      }
+
+      // Le stock ne revient qu'une fois : `stockRestoredAt` est le verrou.
+      const shouldRestore = restoresStock(next) && order.stockRestoredAt === null;
+      if (shouldRestore) {
+        for (const item of order.items) {
+          if (!item.variantId) {
+            // Commande antérieure au lot L3, ou variante supprimée depuis :
+            // rien à recréditer, mais il faut le savoir en cas d'écart d'inventaire.
+            this.logger.warn(
+              `Stock non restitué pour la ligne ${item.id} : variante inconnue`,
+            );
+            continue;
+          }
+          await tx.productVariant.update({
+            where: { id: item.variantId },
+            data: { stock: { increment: item.quantity } },
+          });
+        }
+      }
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          status: next,
+          comment: options.comment || null,
+          changedByUserId: options.changedByUserId ?? null,
+        },
+      });
+
+      return tx.order.update({
+        where: { id: orderId },
+        data: {
+          status: next,
+          ...(options.trackingNumber && { trackingNumber: options.trackingNumber }),
+          ...(next === 'cancelled' && { cancelledAt: new Date() }),
+          ...(shouldRestore && { stockRestoredAt: new Date() }),
+        },
+        include: {
+          items: true,
+          user: USER_SUMMARY,
+          statusHistory: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+    });
+
+    // L'email part hors transaction : un envoi lent ne doit pas tenir un verrou.
+    if (next === 'shipping') {
+      this.mail.sendOrderShipped(updated as any).catch(() => null);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Contenu de la commande.
+   *
+   * Le panier serveur fait foi depuis le lot L2. Les `items` envoyés dans la
+   * requête restent acceptés pour les clients déjà déployés, mais uniquement si
+   * le panier est vide : ils ne peuvent ni contredire le panier, ni fixer un prix.
+   */
+  private async resolveRequestedItems(
+    userId: bigint,
+    fallbackItems?: OrderItemDto[],
+  ): Promise<{ variantId: bigint; quantity: number }[]> {
+    const cartItems = await this.prisma.cartItem.findMany({
+      where: { cart: { userId } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    if (cartItems.length) {
+      return cartItems.map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
+    }
+
+    if (!fallbackItems?.length) return [];
+
+    this.logger.warn(`Commande créée depuis un client hérité (panier serveur vide)`);
+    const resolved: { variantId: bigint; quantity: number }[] = [];
+
+    for (const item of fallbackItems) {
+      const variants = await this.prisma.productVariant.findMany({
+        where: { productId: toId(item.productId), isActive: true },
+      });
+      const variant = findVariant(variants, item.color, item.size);
+      if (!variant) {
+        throw new BadRequestException(
+          "La déclinaison choisie n'est plus proposée. Actualisez votre panier.",
+        );
+      }
+      resolved.push({ variantId: variant.id, quantity: item.quantity });
+    }
+
+    return resolved;
+  }
+
+  /** Vérifie chaque ligne et fige son instantané, verrou déjà tenu. */
+  private async buildLines(
+    tx: Prisma.TransactionClient,
+    requested: { variantId: bigint; quantity: number }[],
+  ): Promise<ResolvedLine[]> {
+    const lines: ResolvedLine[] = [];
+
+    for (const { variantId, quantity } of requested) {
+      const variant = await tx.productVariant.findUnique({
+        where: { id: variantId },
+        include: {
+          product: { include: { images: { where: { isPrimary: true }, take: 1 } } },
+        },
+      });
+
+      if (!variant || !variant.isActive || !variant.product.isActive) {
+        throw new BadRequestException(
+          `« ${variant?.product.name ?? 'Un article'} » n'est plus proposé à la vente.`,
+        );
+      }
+      if (variant.stock < quantity) {
+        throw new ConflictException(
+          variant.stock === 0
+            ? `« ${variant.product.name} » est épuisé.`
+            : `Il ne reste que ${variant.stock} article(s) de « ${variant.product.name} ».`,
+        );
+      }
+
+      const unitPrice = variant.product.price;
+      lines.push({
+        variantId: variant.id,
+        productId: variant.productId,
+        productName: variant.product.name,
+        productImageUrl: variant.product.images[0]?.url || null,
+        unitPrice,
+        quantity,
+        subtotal: Number(unitPrice) * quantity,
+        variantColor: variant.color,
+        variantSize: variant.size,
+      });
+    }
+
+    return lines;
+  }
+
+  /**
+   * Référence unique au format CMD-AAAAMMJJ-XXXXXX.
+   * Le suffixe est tiré au sort : l'ancien `count() + 1` donnait la même
+   * référence à deux commandes simultanées, et l'insertion échouait.
+   */
   private async generateReference(): Promise<string> {
-    const count = await this.prisma.order.count();
-    return `VT-${String(count + 1).padStart(5, '0')}`;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const suffix = randomBytes(4).readUInt32BE(0).toString(36).toUpperCase();
+      const reference = buildOrderReference(new Date(), suffix);
+      const existing = await this.prisma.order.findUnique({ where: { reference } });
+      if (!existing) return reference;
+    }
+    // Cinq collisions d'affilée sur 36^6 possibilités : mieux vaut échouer
+    // bruyamment que boucler indéfiniment.
+    throw new ConflictException('Impossible de générer une référence de commande.');
   }
 }
