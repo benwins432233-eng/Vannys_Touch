@@ -4,8 +4,18 @@ import { ShoppingBag, Star, ChevronLeft, Check } from 'lucide-react';
 import { useProduct } from '@/hooks/use-products';
 import { useCartStore } from '@/store/cart.store';
 import { formatPrice, getDiscountPercent, cn } from '@/utils';
+import {
+  colorsOf,
+  findVariant,
+  maxQuantityFor,
+  sizesOf,
+  stockForOption,
+} from '@/utils/variants';
 import toast from 'react-hot-toast';
 import { Badge, Button, ErrorState, QuantityStepper, Skeleton } from '@/components/ui';
+
+/** Déclinaison épuisée : visible, mais barrée et non sélectionnable. */
+const UNAVAILABLE = 'opacity-50 line-through pointer-events-none';
 
 export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -47,8 +57,16 @@ export function ProductDetailPage() {
     );
   }
 
-  const colors = product.variants.filter((v) => v.type === 'COLOR');
-  const sizes = product.variants.filter((v) => v.type === 'SIZE');
+  const colors = colorsOf(product.variants);
+  const sizes = sizesOf(product.variants);
+
+  // Le stock vit sur la combinaison choisie, pas sur le produit (lot L1).
+  const selected = findVariant(product.variants, selectedColor, selectedSize);
+  const selectionComplete =
+    (!colors.length || selectedColor !== undefined) &&
+    (!sizes.length || selectedSize !== undefined);
+  const maxQuantity = maxQuantityFor(selected);
+  const canOrder = selectionComplete && maxQuantity > 0;
   // Copie avant tri : `sort` modifie le tableau, ici celui du cache React Query.
   const images = [...product.images].sort((a, b) => a.sortOrder - b.sortOrder);
   const discount = product.originalPrice
@@ -56,21 +74,34 @@ export function ProductDetailPage() {
     : 0;
 
   const handleAddToCart = () => {
-    addItem(product, quantity, selectedColor, selectedSize);
+    if (!canOrder) return;
+    addItem(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
     toast.success('Produit ajouté au panier !');
   };
 
   const handleBuyNow = () => {
-    addItem(product, quantity, selectedColor, selectedSize);
+    if (!canOrder) return;
+    addItem(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
     toggleCart();
   };
 
-  const optionClass = (selected: boolean) =>
+  /** Change un axe de sélection et ramène la quantité dans le stock disponible. */
+  const pick = (axis: 'color' | 'size', value: string) => {
+    const nextColor = axis === 'color' ? (value === selectedColor ? undefined : value) : selectedColor;
+    const nextSize = axis === 'size' ? (value === selectedSize ? undefined : value) : selectedSize;
+    setSelectedColor(nextColor);
+    setSelectedSize(nextSize);
+
+    const next = maxQuantityFor(findVariant(product.variants, nextColor, nextSize));
+    if (next > 0 && quantity > next) setQuantity(next);
+  };
+
+  const optionClass = (isSelected: boolean) =>
     cn(
       'border-2 rounded-token text-sm transition-colors',
-      selected
+      isSelected
         ? 'border-accent text-foreground font-medium bg-accent/10'
         : 'border-border text-muted-foreground hover:border-accent/60 hover:text-foreground',
     );
@@ -196,19 +227,26 @@ export function ProductDetailPage() {
                   Couleur{selectedColor && ` : ${selectedColor}`}
                 </legend>
                 <div className="flex flex-wrap gap-2">
-                  {colors.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      aria-pressed={selectedColor === c.value}
-                      onClick={() =>
-                        setSelectedColor(c.value === selectedColor ? undefined : c.value)
-                      }
-                      className={cn('px-3 py-1.5', optionClass(selectedColor === c.value))}
-                    >
-                      {c.value}
-                    </button>
-                  ))}
+                  {colors.map((color) => {
+                    const stock = stockForOption(product.variants, 'color', color, selectedSize);
+                    return (
+                      <button
+                        key={color}
+                        type="button"
+                        aria-pressed={selectedColor === color}
+                        disabled={stock === 0}
+                        onClick={() => pick('color', color)}
+                        className={cn(
+                          'px-3 py-1.5',
+                          optionClass(selectedColor === color),
+                          stock === 0 && UNAVAILABLE,
+                        )}
+                      >
+                        {color}
+                        {stock === 0 && <span className="sr-only"> — indisponible</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </fieldset>
             )}
@@ -220,60 +258,89 @@ export function ProductDetailPage() {
                   Taille{selectedSize && ` : ${selectedSize}`}
                 </legend>
                 <div className="flex flex-wrap gap-2">
-                  {sizes.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-pressed={selectedSize === s.value}
-                      onClick={() => setSelectedSize(s.value === selectedSize ? undefined : s.value)}
-                      className={cn(
-                        'w-12 h-10 font-medium',
-                        optionClass(selectedSize === s.value),
-                      )}
-                    >
-                      {s.value}
-                    </button>
-                  ))}
+                  {sizes.map((size) => {
+                    const stock = stockForOption(product.variants, 'size', size, selectedColor);
+                    return (
+                      <button
+                        key={size}
+                        type="button"
+                        aria-pressed={selectedSize === size}
+                        disabled={stock === 0}
+                        onClick={() => pick('size', size)}
+                        className={cn(
+                          'w-12 h-10 font-medium',
+                          optionClass(selectedSize === size),
+                          stock === 0 && UNAVAILABLE,
+                        )}
+                      >
+                        {size}
+                        {stock === 0 && <span className="sr-only"> — indisponible</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </fieldset>
             )}
 
             {/* Quantité */}
-            <div className="mt-6 flex items-center gap-4">
+            <div className="mt-6 flex items-center gap-4 flex-wrap">
               <p className="text-sm font-medium text-foreground">Quantité</p>
               <QuantityStepper
                 value={quantity}
                 onChange={setQuantity}
+                max={maxQuantity || 1}
                 itemLabel={product.name}
                 size="md"
               />
+              {selected && selected.stock > 0 && selected.stock <= product.lowStockThreshold && (
+                <Badge tone="warning">
+                  Plus que {selected.stock} en stock
+                </Badge>
+              )}
             </div>
 
             {/* Actions */}
-            {product.inStock ? (
-              <div className="mt-6 flex gap-3">
-                <Button
-                  onClick={handleAddToCart}
-                  className="flex-1"
-                  leftIcon={
-                    added ? (
-                      <Check className="w-4 h-4" aria-hidden="true" />
-                    ) : (
-                      <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-                    )
-                  }
-                >
-                  {added ? 'Ajouté !' : 'Ajouter au panier'}
-                </Button>
-                <Button variant="outline" onClick={handleBuyNow}>
-                  Commander
-                </Button>
-              </div>
-            ) : (
+            {product.availability === 'out_of_stock' ? (
               <div className="mt-6 p-4 bg-muted rounded-token text-center">
                 <p className="text-muted-foreground font-medium">
                   Ce produit est temporairement épuisé
                 </p>
+              </div>
+            ) : (
+              <div className="mt-6 space-y-2">
+                <div className="flex gap-3">
+                  <Button
+                    onClick={handleAddToCart}
+                    disabled={!canOrder}
+                    className="flex-1"
+                    leftIcon={
+                      added ? (
+                        <Check className="w-4 h-4" aria-hidden="true" />
+                      ) : (
+                        <ShoppingBag className="w-4 h-4" aria-hidden="true" />
+                      )
+                    }
+                  >
+                    {added ? 'Ajouté !' : 'Ajouter au panier'}
+                  </Button>
+                  <Button variant="outline" disabled={!canOrder} onClick={handleBuyNow}>
+                    Commander
+                  </Button>
+                </div>
+                {/* Dire pourquoi le bouton est inactif plutôt que de le laisser muet. */}
+                {!selectionComplete && (
+                  <p className="text-sm text-muted-foreground" role="status">
+                    Choisissez {[colors.length && 'une couleur', sizes.length && 'une taille']
+                      .filter(Boolean)
+                      .join(' et ')}{' '}
+                    pour continuer.
+                  </p>
+                )}
+                {selectionComplete && maxQuantity === 0 && (
+                  <p className="text-sm text-destructive" role="status">
+                    Cette déclinaison est épuisée. Essayez-en une autre.
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/use-products';
 import { apiClient } from '@/api/client';
 import { formatPrice } from '@/utils';
+import { VariantEditor } from '@/components/products/VariantEditor';
+import type { VariantDraft } from '@/components/products/VariantEditor';
 import {
   Badge,
   Button,
@@ -19,16 +21,37 @@ import {
   TextareaField,
   Tr,
 } from '@/components/ui';
-import type { Category, PaginatedResponse, Product } from '@/types';
+import type { Availability, Category, PaginatedResponse, Product } from '@/types';
+import type { BadgeTone } from '@/components/ui';
 
 /** `create` pour un nouveau produit, le produit lui-même pour une modification. */
 type ModalState = null | 'create' | Product;
+
+const AVAILABILITY: Record<Availability, { label: string; tone: BadgeTone }> = {
+  available: { label: 'En stock', tone: 'success' },
+  low_stock: { label: 'Stock faible', tone: 'warning' },
+  out_of_stock: { label: 'Épuisé', tone: 'destructive' },
+  disabled: { label: 'Désactivé', tone: 'neutral' },
+};
+
+/** Disponibilité calculée par le serveur, doublée du stock restant. */
+function StockBadge({ product }: { product: Product }) {
+  const { label, tone } = AVAILABILITY[product.availability] ?? AVAILABILITY.out_of_stock;
+  return (
+    <div className="flex items-center gap-2">
+      <Badge tone={tone}>{label}</Badge>
+      <span className="text-xs whitespace-nowrap">{product.totalStock} u.</span>
+    </div>
+  );
+}
 
 export function AdminProductsPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [modal, setModal] = useState<ModalState>(null);
   const [toDelete, setToDelete] = useState<Product | null>(null);
+  const [variants, setVariants] = useState<VariantDraft[]>([]);
+  const [lowStockThreshold, setLowStockThreshold] = useState(3);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', search, page],
@@ -54,6 +77,21 @@ export function AdminProductsPage() {
 
   const editing = modal !== null && modal !== 'create' ? modal : null;
 
+  // Les déclinaisons sont un état à part : ce sont des lignes ajoutées et
+  // retirées, pas un champ de formulaire non contrôlé.
+  useEffect(() => {
+    if (modal === null) return;
+    setLowStockThreshold(editing?.lowStockThreshold ?? 3);
+    setVariants(
+      (editing?.variants ?? []).map((v) => ({
+        size: v.size ?? '',
+        color: v.color ?? '',
+        stock: v.stock,
+        isActive: v.isActive,
+      })),
+    );
+  }, [modal, editing]);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
@@ -73,17 +111,25 @@ export function AdminProductsPage() {
     if (originalPriceEl?.value) fd.append('originalPrice', originalPriceEl.value);
 
     // Cases à cocher
-    const inStockEl = form.elements.namedItem('inStock') as HTMLInputElement | null;
     const isFeaturedEl = form.elements.namedItem('isFeatured') as HTMLInputElement | null;
-    fd.append('inStock', inStockEl?.checked ? 'true' : 'false');
     fd.append('isFeatured', isFeaturedEl?.checked ? 'true' : 'false');
 
-    // Couleurs et tailles : envoyées en chaîne séparée par des virgules,
-    // que le backend découpe via le Transform toStringArray
-    const colorsEl = form.elements.namedItem('colors') as HTMLInputElement | null;
-    const sizesEl = form.elements.namedItem('sizes') as HTMLInputElement | null;
-    if (colorsEl?.value.trim()) fd.append('colors', colorsEl.value.trim());
-    if (sizesEl?.value.trim()) fd.append('sizes', sizesEl.value.trim());
+    // Seuil d'alerte et déclinaisons vendables. FormData ne transporte que du
+    // texte : les déclinaisons partent en JSON sérialisé.
+    const thresholdEl = form.elements.namedItem('lowStockThreshold') as HTMLInputElement | null;
+    if (thresholdEl?.value) fd.append('lowStockThreshold', thresholdEl.value);
+
+    fd.append(
+      'variants',
+      JSON.stringify(
+        variants.map((v) => ({
+          size: v.size.trim() || undefined,
+          color: v.color.trim() || undefined,
+          stock: v.stock,
+          isActive: v.isActive,
+        })),
+      ),
+    );
 
     // Images
     const imagesEl = form.elements.namedItem('images') as HTMLInputElement | null;
@@ -185,9 +231,7 @@ export function AdminProductsPage() {
                     {formatPrice(product.price)}
                   </Td>
                   <Td>
-                    <Badge tone={product.inStock ? 'success' : 'destructive'}>
-                      {product.inStock ? 'En stock' : 'Épuisé'}
-                    </Badge>
+                    <StockBadge product={product} />
                   </Td>
                   <Td>
                     <div className="flex gap-1">
@@ -298,40 +342,23 @@ export function AdminProductsPage() {
             defaultValue={editing?.badge ?? ''}
           />
 
-          <div className="grid grid-cols-2 gap-4">
-            <InputField
-              label="Couleurs"
-              name="colors"
-              hint="Séparées par des virgules."
-              placeholder="Rouge, Bleu, Vert"
-              defaultValue={editing?.variants
-                .filter((v) => v.type === 'COLOR')
-                .map((v) => v.value)
-                .join(', ')}
-            />
-            <InputField
-              label="Tailles"
-              name="sizes"
-              hint="Séparées par des virgules."
-              placeholder="XS, S, M, L, XL"
-              defaultValue={editing?.variants
-                .filter((v) => v.type === 'SIZE')
-                .map((v) => v.value)
-                .join(', ')}
-            />
-          </div>
+          <VariantEditor
+            value={variants}
+            onChange={setVariants}
+            lowStockThreshold={lowStockThreshold}
+          />
 
-          <div className="grid grid-cols-2 gap-4">
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-              <input
-                type="checkbox"
-                name="inStock"
-                defaultChecked={editing?.inStock ?? true}
-                className="rounded border-input accent-[hsl(var(--primary))]"
-              />
-              En stock
-            </label>
-            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <div className="grid grid-cols-2 gap-4 items-end">
+            <InputField
+              label="Seuil de stock faible"
+              name="lowStockThreshold"
+              type="number"
+              min={0}
+              hint="En dessous, le produit est signalé."
+              value={lowStockThreshold}
+              onChange={(e) => setLowStockThreshold(Math.max(0, Number(e.target.value) || 0))}
+            />
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground pb-3">
               <input
                 type="checkbox"
                 name="isFeatured"

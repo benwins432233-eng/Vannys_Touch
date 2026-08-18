@@ -51,11 +51,18 @@ export interface ProductImage {
   sortOrder: number;
 }
 
+/** Combinaison vendable : c'est elle qui porte le stock (lot L1). */
 export interface ProductVariant {
   id: string;
-  type: 'COLOR' | 'SIZE';
-  value: string;
+  size?: string | null;
+  color?: string | null;
+  stock: number;
+  sku?: string | null;
+  isActive: boolean;
 }
+
+/** Disponibilité calculée par le serveur à partir du stock des variantes. */
+export type Availability = 'available' | 'low_stock' | 'out_of_stock' | 'disabled';
 
 export interface Product {
   id: string;
@@ -67,6 +74,11 @@ export interface Product {
   badge?: string;
   rating: number;
   reviewsCount: number;
+  reference: string;
+  lowStockThreshold: number;
+  totalStock: number;
+  availability: Availability;
+  /** @deprecated Dérivé de `availability` ; conservé le temps d'une version. */
   inStock: boolean;
   isFeatured: boolean;
   isActive: boolean;

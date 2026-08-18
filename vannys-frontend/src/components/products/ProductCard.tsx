@@ -3,6 +3,7 @@ import { ShoppingBag, Star } from 'lucide-react';
 import type { Product } from '@/types';
 import { formatPrice, getDiscountPercent } from '@/utils';
 import { useCartStore } from '@/store/cart.store';
+import { needsSelection } from '@/utils/variants';
 import { Badge } from '@/components/ui';
 import toast from 'react-hot-toast';
 
@@ -17,10 +18,15 @@ export function ProductCard({ product }: Props) {
     ? getDiscountPercent(Number(product.price), Number(product.originalPrice))
     : 0;
 
+  // Un produit décliné ne peut pas être ajouté d'un clic : sans taille ni
+  // couleur, le serveur ne saurait pas quel stock engager.
+  const mustChoose = needsSelection(product);
+  const orderable = product.availability !== 'out_of_stock' && product.availability !== 'disabled';
+
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!product.inStock) return;
+    if (!orderable || mustChoose) return;
     addItem(product);
     toast.success(`${product.name} ajouté au panier`);
   };
@@ -49,22 +55,27 @@ export function ProductCard({ product }: Props) {
             {discount > 0 && (
               <Badge className="bg-destructive text-destructive-foreground">-{discount}%</Badge>
             )}
-            {!product.inStock && (
+            {product.availability === 'out_of_stock' && (
               <Badge className="bg-deep text-deep-foreground">Épuisé</Badge>
+            )}
+            {product.availability === 'low_stock' && (
+              <Badge tone="warning">Derniers articles</Badge>
             )}
           </div>
 
-          {/* Quick add */}
-          {product.inStock && (
+          {/* Ajout rapide */}
+          {orderable && (
             <button
-              onClick={handleAddToCart}
+              onClick={mustChoose ? undefined : handleAddToCart}
+              tabIndex={mustChoose ? -1 : undefined}
+              aria-hidden={mustChoose || undefined}
               className="absolute bottom-0 left-0 right-0 py-3 text-sm font-semibold text-center
                          bg-primary text-primary-foreground
                          opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0
                          focus-visible:opacity-100 focus-visible:translate-y-0
                          transition-all duration-200"
             >
-              Ajouter au panier
+              {mustChoose ? 'Choisir une déclinaison' : 'Ajouter au panier'}
             </button>
           )}
         </div>

@@ -6,9 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { CreateProductDto, UpdateProductDto, ProductFilterDto } from './dto/product.dto';
+import {
+  CreateProductDto,
+  UpdateProductDto,
+  ProductFilterDto,
+  ProductVariantDto,
+} from './dto/product.dto';
+import { withAvailability } from './product-availability';
 import slugify from 'slugify';
-import { v4 as uuidv4 } from 'uuid';
 
 //Convertir les types string en bigInt
 const toId = (id: string | number | bigint): bigint => {
@@ -18,6 +23,12 @@ const toId = (id: string | number | bigint): bigint => {
     throw new BadRequestException(`Invalid ID format: ${id}`);
   }
 };
+
+/** Stock attribué à un produit créé sans variante par un client déjà déployé. */
+const DEFAULT_LEGACY_STOCK = 10;
+
+/** Référence lisible dérivée de l'identifiant : stable et unique par construction. */
+const referenceFor = (id: bigint): string => `PRD-${String(id).padStart(5, '0')}`;
 
 @Injectable()
 export class ProductsService {
@@ -68,14 +79,15 @@ export class ProductsService {
         include: {
           category: { select: { id: true, name: true, slug: true } },
           images: { orderBy: { sortOrder: 'asc' } },
-          variants: true,
+          // Le catalogue public ne montre que les combinaisons encore vendables.
+          variants: { where: { isActive: true }, orderBy: [{ size: 'asc' }, { color: 'asc' }] },
         },
       }),
       this.prisma.product.count({ where }),
     ]);
 
     return {
-      data: products,
+      data: products.map(withAvailability),
       meta: { total, page, limit: take, lastPage: Math.ceil(total / take) },
     };
   }
@@ -86,7 +98,7 @@ export class ProductsService {
       include: {
         category: true,
         images: { orderBy: { sortOrder: 'asc' } },
-        variants: true,
+        variants: { where: { isActive: true }, orderBy: [{ size: 'asc' }, { color: 'asc' }] },
         reviews: {
           where: { isVisible: true },
           orderBy: { createdAt: 'desc' },
@@ -95,16 +107,21 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
-    return product;
+    return withAvailability(product);
   }
 
+  /** Vue administration : les variantes désactivées restent visibles. */
   async findById(id: string | bigint) {
     const product = await this.prisma.product.findUnique({
       where: { id: toId(id) },
-      include: { category: true, images: { orderBy: { sortOrder: 'asc' } }, variants: true },
+      include: {
+        category: true,
+        images: { orderBy: { sortOrder: 'asc' } },
+        variants: { orderBy: [{ size: 'asc' }, { color: 'asc' }] },
+      },
     });
     if (!product) throw new NotFoundException('Product not found');
-    return product;
+    return withAvailability(product);
   }
 
   async create(dto: CreateProductDto, imageFiles: Express.Multer.File[]) {
@@ -114,14 +131,20 @@ export class ProductsService {
       data: {
         name: dto.name,
         slug,
+        reference: '', // remplacée juste après : la référence dérive de l'id
         description: dto.description,
         price: dto.price,
         originalPrice: dto.originalPrice || null,
         categoryId: toId(dto.categoryId),
         badge: dto.badge || null,
-        inStock: dto.inStock ?? true,
+        lowStockThreshold: dto.lowStockThreshold ?? 3,
         isFeatured: dto.isFeatured ?? false,
       },
+    });
+
+    await this.prisma.product.update({
+      where: { id: product.id },
+      data: { reference: referenceFor(product.id) },
     });
 
     // Upload images
@@ -129,21 +152,7 @@ export class ProductsService {
       await this.uploadImages(product.id, imageFiles);
     }
 
-    // Create variants
-    if (dto.colors?.length) {
-      await this.prisma.productVariant.createMany({
-        data: dto.colors.filter(Boolean).map((v) => ({
-          productId: product.id, type: 'color', value: v.trim(),
-        })),
-      });
-    }
-    if (dto.sizes?.length) {
-      await this.prisma.productVariant.createMany({
-        data: dto.sizes.filter(Boolean).map((v) => ({
-          productId: product.id, type: 'size', value: v.trim(),
-        })),
-      });
-    }
+    await this.syncVariants(product.id, this.resolveVariants(dto));
 
     return this.findById(product.id);
   }
@@ -154,15 +163,15 @@ export class ProductsService {
 
     const data: any = {};
     const fields = [
-      'name', 
-      'description', 
-      'price', 
-      'originalPrice', 
-      'categoryId', 
-      'badge', 
-      'inStock', 
-      'isFeatured', 
-      'isActive'
+      'name',
+      'description',
+      'price',
+      'originalPrice',
+      'categoryId',
+      'badge',
+      'lowStockThreshold',
+      'isFeatured',
+      'isActive',
     ];
     for (const f of fields) {
       if (dto[f] !== undefined) data[f] = dto[f] === '' ? null : dto[f];
@@ -177,17 +186,8 @@ export class ProductsService {
       await this.uploadImages(numericId, imageFiles);
     }
 
-    // Replace variants if provided
-    if (dto.colors !== undefined || dto.sizes !== undefined) {
-      await this.prisma.productVariant.deleteMany({ where: { productId: numericId } });
-
-      const newVariants = [
-        ...(dto.colors || []).filter(Boolean).map((v) => ({ productId: numericId, type: 'color' as const, value: v.trim() })),
-        ...(dto.sizes || []).filter(Boolean).map((v) => ({ productId: numericId, type: 'size' as const, value: v.trim() })),
-      ];
-      if (newVariants.length) {
-        await this.prisma.productVariant.createMany({ data: newVariants });
-      }
+    if (dto.variants !== undefined || dto.colors !== undefined || dto.sizes !== undefined) {
+      await this.syncVariants(numericId, this.resolveVariants(dto));
     }
 
     return this.findById(numericId);
@@ -241,6 +241,108 @@ export class ProductsService {
   }
 
   // ─── Private helpers ─────────────────────────────────────────
+
+  /**
+   * Traduit la charge utile reçue en liste de combinaisons vendables.
+   *
+   * `variants` est la forme actuelle. `colors`/`sizes`, encore acceptés pour les
+   * clients déjà déployés, sont combinés en produit cartésien : c'est ce que
+   * l'ancien modèle laissait entendre sans jamais le matérialiser.
+   */
+  private resolveVariants(dto: CreateProductDto | UpdateProductDto): ProductVariantDto[] {
+    if (dto.variants?.length) {
+      return dto.variants.map((v) => ({
+        size: v.size?.trim() || undefined,
+        color: v.color?.trim() || undefined,
+        stock: v.stock ?? 0,
+        sku: v.sku?.trim() || undefined,
+        isActive: v.isActive ?? true,
+      }));
+    }
+
+    const colors = (dto.colors ?? []).filter(Boolean).map((c) => c.trim());
+    const sizes = (dto.sizes ?? []).filter(Boolean).map((s) => s.trim());
+
+    // Sans variante déclarée, le produit reste vendable via une combinaison
+    // unique ; `inStock` (déprécié) ne sert plus qu'à lui donner un stock initial.
+    if (!colors.length && !sizes.length) {
+      if (dto.variants === undefined && dto.colors === undefined && dto.sizes === undefined) {
+        return [];
+      }
+      return [{ stock: dto.inStock === false ? 0 : DEFAULT_LEGACY_STOCK, isActive: true }];
+    }
+
+    if (!sizes.length) {
+      return colors.map((color) => ({ color, stock: 0, isActive: true }));
+    }
+    if (!colors.length) {
+      return sizes.map((size) => ({ size, stock: 0, isActive: true }));
+    }
+    return colors.flatMap((color) => sizes.map((size) => ({ color, size, stock: 0, isActive: true })));
+  }
+
+  /**
+   * Aligne les variantes du produit sur la liste reçue.
+   *
+   * Une combinaison absente de la liste n'est jamais supprimée si elle a déjà
+   * été commandée : elle est désactivée, sinon l'historique des commandes
+   * perdrait sa référence. Une combinaison existante conserve son identifiant,
+   * pour que les paniers en cours continuent de pointer sur la bonne ligne.
+   */
+  private async syncVariants(productId: bigint, variants: ProductVariantDto[]) {
+    const key = (v: { size?: string | null; color?: string | null }) =>
+      `${v.size ?? ''}::${v.color ?? ''}`;
+
+    const existing = await this.prisma.productVariant.findMany({ where: { productId } });
+    const existingByKey = new Map(existing.map((v) => [key(v), v]));
+    const wantedKeys = new Set(variants.map(key));
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const variant of variants) {
+        const current = existingByKey.get(key(variant));
+        const data = {
+          size: variant.size ?? null,
+          color: variant.color ?? null,
+          stock: variant.stock,
+          sku: variant.sku ?? null,
+          isActive: variant.isActive ?? true,
+        };
+
+        if (current) {
+          await tx.productVariant.update({ where: { id: current.id }, data });
+        } else {
+          await tx.productVariant.create({ data: { productId, ...data } });
+        }
+      }
+
+      const removed = existing.filter((v) => !wantedKeys.has(key(v)));
+      if (!removed.length) return;
+
+      const ordered = await tx.orderItem.findMany({
+        where: {
+          productId,
+          OR: removed.map((v) => ({ variantSize: v.size, variantColor: v.color })),
+        },
+        select: { variantSize: true, variantColor: true },
+      });
+      const orderedKeys = new Set(
+        ordered.map((i) => key({ size: i.variantSize, color: i.variantColor })),
+      );
+
+      const toDisable = removed.filter((v) => orderedKeys.has(key(v))).map((v) => v.id);
+      const toDelete = removed.filter((v) => !orderedKeys.has(key(v))).map((v) => v.id);
+
+      if (toDisable.length) {
+        await tx.productVariant.updateMany({
+          where: { id: { in: toDisable } },
+          data: { isActive: false, stock: 0 },
+        });
+      }
+      if (toDelete.length) {
+        await tx.productVariant.deleteMany({ where: { id: { in: toDelete } } });
+      }
+    });
+  }
 
   private async uploadImages(productId: bigint, files: Express.Multer.File[]) {
     const existingCount = await this.prisma.productImage.count({ where: { productId } });

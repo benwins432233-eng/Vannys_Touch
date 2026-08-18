@@ -3,12 +3,14 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { CreateOrderDto, UpdateOrderStatusDto, OrderFilterDto } from './dto/order.dto';
 import { orders_status, users_role } from '@prisma/client';
+import { findVariant, shippingFeeFor } from './order-rules';
 
 // Convertir un string/number/bigint en BigInt pour les requêtes Prisma
 const toId = (id: string | number | bigint): bigint => {
@@ -80,14 +82,32 @@ export class OrdersService {
     const orderItems: any[] = [];
 
     for (const item of dto.items) {
-      // Inclure les images dans la requête produit
+      // Inclure les images et les variantes vendables dans la requête produit
       const product = await this.prisma.product.findFirst({
         where: { id: toId(item.productId), isActive: true },
-        include: { images: { where: { isPrimary: true }, take: 1 } },
+        include: {
+          images: { where: { isPrimary: true }, take: 1 },
+          variants: { where: { isActive: true } },
+        },
       });
 
       if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
-      if (!product.inStock) throw new BadRequestException(`Product "${product.name}" is out of stock`);
+
+      // Le stock vit sur la variante depuis le lot L1 : c'est la combinaison
+      // commandée, et elle seule, qui décide si la ligne est vendable.
+      const variant = findVariant(product.variants, item.color, item.size);
+      if (!variant) {
+        throw new BadRequestException(
+          `La déclinaison choisie pour « ${product.name} » n'est plus proposée.`,
+        );
+      }
+      if (variant.stock < item.quantity) {
+        throw new ConflictException(
+          variant.stock === 0
+            ? `« ${product.name} » est épuisé.`
+            : `Il ne reste que ${variant.stock} article(s) de « ${product.name} ».`,
+        );
+      }
 
       const lineTotal = Number(product.price) * item.quantity;
       subtotal += lineTotal;
@@ -104,7 +124,7 @@ export class OrdersService {
       });
     }
 
-    const shipping = subtotal >= this.freeShippingThreshold ? 0 : this.shippingFee;
+    const shipping = shippingFeeFor(subtotal, this.freeShippingThreshold, this.shippingFee);
     const reference = await this.generateReference();
 
     const order = await this.prisma.order.create({
