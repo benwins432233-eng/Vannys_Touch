@@ -57,6 +57,31 @@ export class ResetPasswordDto {
   password: string;
 }
 
+export class ConfirmEmailDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  token: string;
+}
+
+export class ForgotPasswordDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+}
+
+/** Réinitialisation via le lien reçu par email — aucune session requise. */
+export class ResetPasswordWithTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  token: string;
+
+  @IsString()
+  @MinLength(8)
+  password: string;
+}
+
 export class RefreshTokenDto {
   @IsString()
   @IsNotEmpty()

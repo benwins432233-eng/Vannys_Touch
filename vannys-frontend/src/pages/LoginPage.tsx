@@ -38,14 +38,21 @@ export function LoginPage() {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
 
-        <PasswordField
-          label="Mot de passe"
-          required
-          autoComplete="current-password"
-          placeholder="••••••••"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
+        <div>
+          <PasswordField
+            label="Mot de passe"
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+          />
+          <div className="text-right mt-1.5">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
+        </div>
 
         <Button type="submit" isLoading={isPending} className="w-full">
           {isPending ? 'Connexion...' : 'Se connecter'}

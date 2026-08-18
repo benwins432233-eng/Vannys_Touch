@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -65,4 +66,20 @@ export const useCurrentUser = () => {
     enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
   });
+};
+
+/**
+ * Réaligne le compte mémorisé sur la base à chaque ouverture de l'application.
+ *
+ * Le magasin garde une photo du compte prise à la connexion : une adresse
+ * vérifiée depuis un autre navigateur, ou un rôle retiré par l'administration,
+ * n'y apparaîtraient jamais.
+ */
+export const useSyncCurrentUser = (): void => {
+  const { data } = useCurrentUser();
+  const setUser = useAuthStore((s) => s.setUser);
+
+  useEffect(() => {
+    if (data) setUser(data);
+  }, [data, setUser]);
 };

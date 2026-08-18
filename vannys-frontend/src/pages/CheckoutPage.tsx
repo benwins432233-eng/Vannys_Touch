@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ShoppingBag, ArrowLeft, Info } from 'lucide-react';
 import { useCart } from '@/hooks/use-cart';
 import { useCreateOrder } from '@/hooks/use-orders';
-import { formatPrice } from '@/utils';
+import { useAddresses } from '@/hooks/use-addresses';
+import { useAuthStore } from '@/store/auth.store';
+import { formatPrice, cn } from '@/utils';
+import { EmailVerificationNotice } from '@/components/account/EmailVerificationNotice';
 import {
   Button,
   Card,
@@ -12,11 +15,15 @@ import {
   SkeletonList,
   TextareaField,
 } from '@/components/ui';
+import type { Address } from '@/types';
 
 export function CheckoutPage() {
   const cart = useCart();
   const { mutate: createOrder, isPending } = useCreateOrder();
+  const { data: addresses } = useAddresses();
+  const emailVerified = useAuthStore((s) => Boolean(s.user?.email_verified_at));
 
+  const [selectedAddressId, setSelectedAddressId] = useState<string>();
   const [form, setForm] = useState({
     deliveryFullName: '',
     deliveryPhone: '',
@@ -30,6 +37,34 @@ export function CheckoutPage() {
   const set = (k: keyof typeof form) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  /**
+   * Recopie une adresse enregistrée dans le formulaire.
+   *
+   * La commande garde une COPIE de l'adresse, pas une référence : modifier son
+   * carnet ne doit pas réécrire l'endroit où une commande passée a été livrée.
+   */
+  const applyAddress = (address: Address) => {
+    setSelectedAddressId(address.id);
+    setForm((f) => ({
+      ...f,
+      deliveryFullName: address.fullName,
+      deliveryPhone: address.phone,
+      deliveryCity: address.city,
+      deliveryDistrict: address.district,
+      deliveryAddress: address.address,
+      deliveryLandmark: address.landmark ?? '',
+    }));
+  };
+
+  // Pré-remplissage par l'adresse par défaut, une seule fois : au-delà, la
+  // cliente a pu corriger le formulaire et on n'écrase pas sa saisie.
+  useEffect(() => {
+    if (selectedAddressId || !addresses?.length) return;
+    const preferred = addresses.find((a) => a.isDefault) ?? addresses[0];
+    applyAddress(preferred);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses]);
 
   // Les montants affichés viennent du panier ; le serveur les recalcule à la
   // création de la commande et c'est lui qui fait foi (§2.3).
@@ -68,6 +103,44 @@ export function CheckoutPage() {
         <form onSubmit={handleSubmit} className="grid lg:grid-cols-3 gap-8">
           {/* Livraison */}
           <div className="lg:col-span-2 space-y-6">
+            <EmailVerificationNotice />
+
+            {/* Adresses enregistrées */}
+            {!!addresses?.length && (
+              <Card className="p-6">
+                <h2 className="font-semibold text-foreground mb-4">Mes adresses</h2>
+                <div className="grid sm:grid-cols-2 gap-3" role="radiogroup" aria-label="Adresse de livraison">
+                  {addresses.map((address) => {
+                    const selected = selectedAddressId === address.id;
+                    return (
+                      <button
+                        key={address.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => applyAddress(address)}
+                        className={cn(
+                          'text-left p-4 rounded-token border-2 transition-colors',
+                          selected
+                            ? 'border-accent bg-accent/10'
+                            : 'border-border hover:border-accent/60',
+                        )}
+                      >
+                        <span className="font-medium text-foreground">{address.label}</span>
+                        <span className="block text-sm text-muted-foreground mt-0.5">
+                          {address.fullName} — {address.district}, {address.city}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Les champs ci-dessous se remplissent automatiquement ; vous pouvez les ajuster
+                  pour cette commande sans modifier votre carnet.
+                </p>
+              </Card>
+            )}
+
             <Card className="p-6">
               <h2 className="font-semibold text-foreground mb-5">Informations de livraison</h2>
               <div className="grid sm:grid-cols-2 gap-4">
@@ -206,11 +279,18 @@ export function CheckoutPage() {
               <Button
                 type="submit"
                 isLoading={isPending}
+                disabled={!emailVerified}
                 leftIcon={<ShoppingBag className="w-4 h-4" aria-hidden="true" />}
                 className="w-full mt-5"
               >
                 {isPending ? 'Envoi en cours...' : 'Passer la commande'}
               </Button>
+              {/* Dire pourquoi le bouton est inactif plutôt que de le laisser muet. */}
+              {!emailVerified && (
+                <p className="text-sm text-muted-foreground mt-2" role="status">
+                  Confirmez votre adresse email pour finaliser la commande.
+                </p>
+              )}
             </Card>
           </div>
         </form>

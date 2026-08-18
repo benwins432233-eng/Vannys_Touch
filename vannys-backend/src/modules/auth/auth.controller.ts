@@ -2,7 +2,15 @@ import { Controller, Post, Get, Body, HttpCode, HttpStatus } from '@nestjs/commo
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, ResetPasswordDto, RefreshTokenDto } from './dto/auth.dto';
+import {
+  RegisterDto,
+  LoginDto,
+  ResetPasswordDto,
+  RefreshTokenDto,
+  ConfirmEmailDto,
+  ForgotPasswordDto,
+  ResetPasswordWithTokenDto,
+} from './dto/auth.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { User } from '@prisma/client';
@@ -53,14 +61,62 @@ export class AuthController {
     return this.authService.refresh(dto.refreshToken);
   }
 
+  // ── Vérification d'email ──────────────────────────────────
+
+  @Post('verify-email/request')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Envoyer (ou renvoyer) le lien de vérification' })
+  requestEmailVerification(@CurrentUser() user: User) {
+    return this.authService.requestEmailVerification(user.id.toString());
+  }
+
+  @Public()
+  @Post('verify-email/confirm')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirmer une adresse email à partir du jeton reçu' })
+  confirmEmail(@Body() dto: ConfirmEmailDto) {
+    return this.authService.confirmEmail(dto);
+  }
+
+  // ── Mot de passe ──────────────────────────────────────────
+
+  @Public()
+  @Post('password/forgot')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Demander un lien de réinitialisation' })
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Public()
+  @Post('password/reset')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Réinitialiser son mot de passe avec le jeton reçu' })
+  resetPasswordWithToken(@Body() dto: ResetPasswordWithTokenDto) {
+    return this.authService.resetPasswordWithToken(dto);
+  }
+
+  @Post('password/change')
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Changer son mot de passe (mot de passe actuel exigé)' })
+  changePassword(@CurrentUser() user: User, @Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(user.id.toString(), dto);
+  }
+
   // ⚠️ Cette route était publique et acceptait { email, password } : n'importe qui
   // pouvait redéfinir le mot de passe de n'importe quel compte, administrateur compris.
   // Elle exige désormais une authentification et le mot de passe actuel.
-  // @deprecated — remplacée par POST /auth/password/forgot + /auth/password/reset (jeton).
+  //
+  // @deprecated Son nom prête à confusion : elle CHANGE un mot de passe connu,
+  // elle ne le réinitialise pas. Utiliser POST /auth/password/change, ou
+  // /auth/password/forgot + /auth/password/reset pour un mot de passe oublié.
+  // Conservée le temps d'une version pour les clients déjà déployés.
   @Post('reset-password')
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Change own password (requires current password)' })
+  @ApiOperation({ summary: '[Déprécié] Voir POST /auth/password/change' })
   resetPassword(@CurrentUser() user: User, @Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(user.id.toString(), dto);
   }

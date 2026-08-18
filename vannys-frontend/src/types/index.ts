@@ -12,6 +12,22 @@ export interface User {
   role: Role;
   avatarUrl?: string;
   isActive: boolean;
+  /** Nul tant que l'adresse n'a pas été confirmée — la commande l'exige. */
+  email_verified_at?: string | null;
+  createdAt: string;
+}
+
+/** Adresse enregistrée du carnet. La commande en garde une copie figée. */
+export interface Address {
+  id: string;
+  label: string;
+  fullName: string;
+  phone: string;
+  city: string;
+  district: string;
+  address: string;
+  landmark?: string | null;
+  isDefault: boolean;
   createdAt: string;
 }
 

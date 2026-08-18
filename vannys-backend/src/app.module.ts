@@ -8,6 +8,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { CartModule } from './modules/cart/cart.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
 import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { MailModule } from './modules/mail/mail.module';
 import { HealthModule } from './health/health.module';
@@ -49,6 +50,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     CategoriesModule,
     OrdersModule,
     CartModule,
+    AddressesModule,
     HealthModule,
   ],
   providers: [

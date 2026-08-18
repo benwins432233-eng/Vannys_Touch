@@ -103,6 +103,75 @@ export class MailService {
     await this.send(this.adminAddress, `👤 Nouvel utilisateur : ${user.firstName} ${user.lastName}`, html);
   }
 
+  /**
+   * Lien de vérification d'adresse. Pas d'image distante : une image bloquée
+   * par la messagerie ne doit pas cacher le bouton d'action.
+   */
+  async sendEmailVerification(user: User, link: string): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h2 style="color:#8a6c3c;margin-top:0;">Confirmez votre adresse email</h2>
+          <p style="color:#444;">Bonjour <strong>${user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Une dernière étape avant de commander : confirmez que cette adresse est bien la vôtre.
+            Ce lien est valable <strong>24 heures</strong>.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${link}"
+               style="background:#8a6c3c;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+              Confirmer mon adresse
+            </a>
+          </div>
+          <p style="color:#777;font-size:13px;line-height:1.6;">
+            Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br />
+            <span style="word-break:break-all;color:#8a6c3c;">${link}</span>
+          </p>
+          <p style="color:#999;font-size:13px;margin-bottom:0;">
+            Vous n'êtes pas à l'origine de cette inscription ? Ignorez simplement cet email.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    await this.send(user.email, 'Confirmez votre adresse email — Vannys Touch', html);
+  }
+
+  /** Lien de réinitialisation de mot de passe, valable 2 heures. */
+  async sendPasswordResetLink(user: User, link: string): Promise<void> {
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <body style="font-family:Inter,Arial,sans-serif;background:#f9f7f4;margin:0;padding:24px;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:12px;padding:40px;">
+          <h2 style="color:#8a6c3c;margin-top:0;">Réinitialiser votre mot de passe</h2>
+          <p style="color:#444;">Bonjour <strong>${user.firstName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">
+            Vous avez demandé à choisir un nouveau mot de passe. Ce lien est valable
+            <strong>2 heures</strong> et ne fonctionne qu'une fois.
+          </p>
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${link}"
+               style="background:#8a6c3c;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">
+              Choisir un nouveau mot de passe
+            </a>
+          </div>
+          <p style="color:#777;font-size:13px;line-height:1.6;">
+            Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br />
+            <span style="word-break:break-all;color:#8a6c3c;">${link}</span>
+          </p>
+          <p style="color:#999;font-size:13px;margin-bottom:0;">
+            Vous n'avez rien demandé ? Ignorez cet email, votre mot de passe reste inchangé.
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+    await this.send(user.email, 'Réinitialiser votre mot de passe — Vannys Touch', html);
+  }
+
   async sendPasswordReset(user: User): Promise<void> {
     const html = `
       <!DOCTYPE html>

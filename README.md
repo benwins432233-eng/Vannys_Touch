@@ -239,6 +239,55 @@ par défaut, les modes mobile money restent acceptés. Jusqu'ici toute commande
 était enregistrée en `MTN` faute d'alternative, alors que le règlement se faisait
 déjà à la livraison.
 
+## Comptes, mots de passe et adresses
+
+### Vérification d'email
+
+Le lien de vérification part dès l'inscription et **la commande l'exige** : sans
+adresse valide, la cliente ne recevrait aucun email de suivi et personne ne s'en
+apercevrait. Le rappel est affiché dans le profil et dans le tunnel de commande,
+jamais découvert au dernier moment.
+
+| Route | Rôle |
+| --- | --- |
+| `POST /api/v1/auth/verify-email/request` | Renvoyer le lien (compte connecté) |
+| `POST /api/v1/auth/verify-email/confirm` | Confirmer avec le jeton reçu |
+| `POST /api/v1/auth/password/forgot` | Demander un lien de réinitialisation |
+| `POST /api/v1/auth/password/reset` | Choisir un nouveau mot de passe (jeton) |
+| `POST /api/v1/auth/password/change` | Changer son mot de passe (mot de passe actuel exigé) |
+| `POST /api/v1/auth/reset-password` | **@deprecated** — alias de `password/change` |
+
+> **Comptes existants** : la migration `5_accounts_addresses` les marque comme
+> vérifiés à leur date d'inscription. Ils n'ont jamais eu l'occasion de
+> confirmer ; les laisser non vérifiés bloquerait toutes les clientes actuelles.
+> Cela ne prouve pas la validité de leurs adresses — l'administration peut
+> retirer la vérification au cas par cas.
+
+### Jetons
+
+Seule l'**empreinte SHA-256** du jeton est stockée (`account_tokens`) : une fuite
+de la base ne donne accès à aucun compte. Validité : **24 h** pour une
+vérification d'email, **2 h** pour une réinitialisation. Un jeton ne sert qu'une
+fois, et émettre un nouveau lien invalide le précédent.
+
+Deux garde-fous :
+
+- « mot de passe oublié » renvoie **toujours la même réponse**, que l'adresse
+  existe ou non — sinon on pourrait dresser la liste des comptes de la boutique ;
+- une nouvelle demande du même type est ignorée pendant **2 minutes**, sans quoi
+  une seule adresse suffirait à noyer une boîte mail.
+
+### Carnet d'adresses
+
+CRUD sur `/api/v1/addresses` (10 adresses maximum par compte), avec
+`PATCH /:id/default` pour changer l'adresse par défaut. Le carnet ne reste jamais
+sans adresse par défaut : la première créée l'est d'office, et la suppression de
+l'adresse par défaut promeut la plus ancienne restante.
+
+Le tunnel de commande pré-remplit le formulaire avec l'adresse par défaut. La
+commande garde une **copie** de l'adresse, jamais une référence : modifier son
+carnet ne doit pas réécrire l'endroit où une commande passée a été livrée.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)

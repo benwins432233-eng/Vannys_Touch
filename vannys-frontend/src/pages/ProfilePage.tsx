@@ -7,6 +7,8 @@ import { useAuthStore } from '@/store/auth.store';
 import { useLogout } from '@/hooks/use-auth';
 import { apiClient } from '@/api/client';
 import { Badge, Button, Card, InputField } from '@/components/ui';
+import { AddressBook } from '@/components/account/AddressBook';
+import { EmailVerificationNotice } from '@/components/account/EmailVerificationNotice';
 
 export function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -36,6 +38,8 @@ export function ProfilePage() {
         <h1 className="text-2xl font-bold text-foreground mb-8">Mon profil</h1>
 
         <div className="space-y-5">
+          <EmailVerificationNotice />
+
           {/* Identité */}
           <Card className="p-6 flex items-center gap-5">
             <div
@@ -97,6 +101,8 @@ export function ProfilePage() {
               </div>
             </form>
           </Card>
+
+          <AddressBook />
 
           {/* Raccourcis */}
           <div className="grid grid-cols-2 gap-4">

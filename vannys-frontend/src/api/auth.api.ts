@@ -37,6 +37,27 @@ export const authApi = {
   // Changement de mot de passe par l'utilisateur connecté : le compte visé est
   // déterminé par le jeton, le mot de passe actuel est exigé.
   changePassword: async (data: { currentPassword: string; password: string }): Promise<void> => {
-    await apiClient.post('/auth/reset-password', data);
+    await apiClient.post('/auth/password/change', data);
+  },
+
+  requestEmailVerification: async (): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/verify-email/request');
+    return res.data.data;
+  },
+
+  confirmEmail: async (token: string): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/verify-email/confirm', { token });
+    return res.data.data;
+  },
+
+  // La réponse est volontairement identique que le compte existe ou non.
+  forgotPassword: async (email: string): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/password/forgot', { email });
+    return res.data.data;
+  },
+
+  resetPassword: async (token: string, password: string): Promise<{ message: string }> => {
+    const res = await apiClient.post('/auth/password/reset', { token, password });
+    return res.data.data;
   },
 };

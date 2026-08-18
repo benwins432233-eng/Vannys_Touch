@@ -187,6 +187,17 @@ export class OrdersService {
    */
   async create(userId: string, dto: CreateOrderDto) {
     const userIdBigInt = toId(userId);
+
+    // Une commande part avec des emails de suivi : sans adresse vérifiée, la
+    // cliente ne recevrait rien et personne ne s'en apercevrait (lot L4).
+    const user = await this.prisma.user.findUnique({ where: { id: userIdBigInt } });
+    if (!user) throw new NotFoundException('User not found');
+    if (!user.email_verified_at) {
+      throw new ForbiddenException(
+        'Confirmez votre adresse email avant de commander. Un lien vous a été envoyé.',
+      );
+    }
+
     const requested = await this.resolveRequestedItems(userIdBigInt, dto.items);
     if (!requested.length) throw new BadRequestException('Votre panier est vide.');
 

@@ -26,6 +26,8 @@ model User {
   reviews           Review[]
   cart              Cart?
   statusChanges     OrderStatusHistory[]
+  accountTokens     AccountToken[]
+  addresses         Address[]
   refreshToken      String?              @map("refresh_token") @db.VarChar(255)
 
   @@index([email], map: "users_email_index")
@@ -124,6 +126,51 @@ model ProductVariant {
   @@unique([productId, size, color], map: "product_variants_product_size_color_unique")
   @@index([productId], map: "product_variants_product_id_index")
   @@map("product_variants")
+}
+
+/// Jeton à usage unique : vérification d'email ou réinitialisation de mot de passe.
+///
+/// Seule l'empreinte du jeton est stockée. Une fuite de la base ne donne donc
+/// accès à aucun compte : on ne peut pas remonter du hachage au jeton envoyé
+/// par email.
+model AccountToken {
+  id        BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt              @map("user_id") @db.UnsignedBigInt
+  type      account_tokens_type
+  /// SHA-256 hexadécimal du jeton envoyé au client — jamais le jeton lui-même.
+  tokenHash String              @unique(map: "account_tokens_token_hash_unique") @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime            @map("expires_at") @db.Timestamp(0)
+  /// Horodatage de consommation : un jeton ne sert qu'une fois.
+  usedAt    DateTime?           @map("used_at") @db.Timestamp(0)
+  createdAt DateTime            @default(now()) @map("created_at") @db.Timestamp(0)
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "account_tokens_user_id_foreign")
+
+  @@index([userId, type], map: "account_tokens_user_id_type_index")
+  @@index([expiresAt], map: "account_tokens_expires_at_index")
+  @@map("account_tokens")
+}
+
+/// Adresse enregistrée du carnet d'adresses d'un client.
+/// La commande en garde une COPIE : modifier une adresse ne doit pas réécrire
+/// l'endroit où une commande passée a été livrée.
+model Address {
+  id        BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  userId    BigInt    @map("user_id") @db.UnsignedBigInt
+  /// Nom donné par la cliente : « Maison », « Bureau »…
+  label     String    @db.VarChar(50)
+  fullName  String    @map("full_name") @db.VarChar(100)
+  phone     String    @db.VarChar(30)
+  city      String    @db.VarChar(100)
+  district  String    @db.VarChar(100)
+  address   String    @db.Text
+  landmark  String?   @db.VarChar(255)
+  isDefault Boolean   @default(false) @map("is_default")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(0)
+  updatedAt DateTime? @updatedAt @map("updated_at") @db.Timestamp(0)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "addresses_user_id_foreign")
+
+  @@index([userId], map: "addresses_user_id_index")
+  @@map("addresses")
 }
 
 /// Trace de chaque changement d'état d'une commande.
@@ -342,6 +389,11 @@ enum payments_status {
 enum users_role {
   user
   admin
+}
+
+enum account_tokens_type {
+  email_verification
+  password_reset
 }
 
 enum orders_payment_status {
