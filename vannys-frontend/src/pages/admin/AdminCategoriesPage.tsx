@@ -1,13 +1,32 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { categoriesApi } from '@/api/categories.api';
+import { getErrorMessage } from '@/utils';
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  IconButton,
+  InputField,
+  SkeletonList,
+  Table,
+  Td,
+  TextareaField,
+  Tr,
+} from '@/components/ui';
 import type { Category } from '@/types';
+
+/** `create` pour une nouvelle catégorie, la catégorie elle-même pour une modification. */
+type ModalState = null | 'create' | Category;
 
 export function AdminCategoriesPage() {
   const qc = useQueryClient();
-  const [modal, setModal] = useState<null | 'create' | Category>(null);
+  const [modal, setModal] = useState<ModalState>(null);
+  const [toDelete, setToDelete] = useState<Category | null>(null);
   const [form, setForm] = useState({ name: '', description: '', isActive: true });
 
   const { data: categories, isLoading } = useQuery({
@@ -15,22 +34,37 @@ export function AdminCategoriesPage() {
     queryFn: categoriesApi.getAllAdmin,
   });
 
+  const invalidate = () => qc.invalidateQueries({ queryKey: ['categories-admin'] });
+
   const { mutate: create, isPending: isCreating } = useMutation({
     mutationFn: categoriesApi.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); setModal(null); toast.success('Catégorie créée'); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erreur'),
+    onSuccess: () => {
+      invalidate();
+      setModal(null);
+      toast.success('Catégorie créée');
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const { mutate: update, isPending: isUpdating } = useMutation({
-    mutationFn: ({ id, ...data }: { id: string } & Partial<Category>) => categoriesApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); setModal(null); toast.success('Catégorie mise à jour'); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erreur'),
+    mutationFn: ({ id, ...data }: { id: string } & Partial<Category>) =>
+      categoriesApi.update(id, data),
+    onSuccess: () => {
+      invalidate();
+      setModal(null);
+      toast.success('Catégorie mise à jour');
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
   });
 
-  const { mutate: remove } = useMutation({
+  const { mutate: remove, isPending: isDeleting } = useMutation({
     mutationFn: categoriesApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories-admin'] }); toast.success('Catégorie supprimée'); },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erreur'),
+    onSuccess: () => {
+      invalidate();
+      setToDelete(null);
+      toast.success('Catégorie supprimée');
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   const openCreate = () => {
@@ -45,96 +79,151 @@ export function AdminCategoriesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (modal === 'create') {
-      create(form);
-    } else if (typeof modal === 'object' && modal !== null) {
-       update({ id: modal.id, ...form });
-    }
+    if (modal === 'create') create(form);
+    else if (modal) update({ id: modal.id, ...form });
   };
+
+  const isEditing = modal !== null && modal !== 'create';
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Catégories</h1>
-        <button onClick={openCreate} className="btn-primary text-sm py-2.5">
-          <Plus className="w-4 h-4" /> Nouvelle catégorie
-        </button>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Catégories</h1>
+        <Button onClick={openCreate} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>
+          Nouvelle catégorie
+        </Button>
       </div>
 
-      <div className="card overflow-hidden">
+      <Card className="overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Chargement...</div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                {['Nom', 'Slug', 'Produits', 'Statut', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {categories?.map((cat) => (
-                <tr key={cat.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{cat.name}</td>
-                  <td className="px-4 py-3 text-gray-400 font-mono text-xs">{cat.slug}</td>
-                  <td className="px-4 py-3 text-gray-500">{cat._count?.products ?? 0}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cat.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                      {cat.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(cat)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => confirm(`Supprimer "${cat.name}" ?`) && remove(cat.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Modal */}
-      {modal !== null && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="font-semibold">{modal === 'create' ? 'Nouvelle catégorie' : `Modifier : ${(modal as Category).name}`}</h2>
-              <button onClick={() => setModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="label">Nom *</label>
-                <input required className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div>
-                <label className="label">Description</label>
-                <textarea className="input resize-none" rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="isActive" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} className="rounded" />
-                <label htmlFor="isActive" className="text-sm font-medium text-gray-700">Active</label>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModal(null)} className="btn-ghost flex-1">Annuler</button>
-                <button type="submit" disabled={isCreating || isUpdating} className="btn-primary flex-1">
-                  {(isCreating || isUpdating) ? <Loader2 className="w-4 h-4 animate-spin" /> : modal === 'create' ? 'Créer' : 'Enregistrer'}
-                </button>
-              </div>
-            </form>
+          <div className="p-5">
+            <SkeletonList count={4} label="Chargement des catégories" />
           </div>
-        </div>
-      )}
+        ) : categories?.length === 0 ? (
+          <EmptyState
+            title="Aucune catégorie"
+            description="Créez une première catégorie pour organiser le catalogue."
+            action={<Button onClick={openCreate}>Nouvelle catégorie</Button>}
+          />
+        ) : (
+          <Table
+            caption="Liste des catégories du catalogue"
+            columns={['Nom', 'Slug', 'Produits', 'Statut', 'Actions']}
+          >
+            {categories?.map((cat) => (
+              <Tr key={cat.id}>
+                <Td className="font-medium text-foreground">{cat.name}</Td>
+                <Td className="font-mono text-xs">{cat.slug}</Td>
+                <Td>{cat._count?.products ?? 0}</Td>
+                <Td>
+                  <Badge tone={cat.isActive ? 'success' : 'neutral'}>
+                    {cat.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </Td>
+                <Td>
+                  <div className="flex gap-1">
+                    <IconButton
+                      label={`Modifier ${cat.name}`}
+                      tone="primary"
+                      icon={<Pencil className="w-4 h-4" />}
+                      onClick={() => openEdit(cat)}
+                    />
+                    <IconButton
+                      label={`Supprimer ${cat.name}`}
+                      tone="destructive"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      onClick={() => setToDelete(cat)}
+                    />
+                  </div>
+                </Td>
+              </Tr>
+            ))}
+          </Table>
+        )}
+      </Card>
+
+      {/* Création / modification */}
+      <Dialog
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        title={isEditing ? `Modifier : ${modal.name}` : 'Nouvelle catégorie'}
+        description={
+          isEditing
+            ? 'Modifiez le nom, la description ou la visibilité de cette catégorie.'
+            : 'Renseignez le nom de la catégorie ; son identifiant est généré automatiquement.'
+        }
+      >
+        <form id="form-categorie" onSubmit={handleSubmit} className="space-y-4">
+          <InputField
+            label="Nom"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+          <TextareaField
+            label="Description"
+            hint="Facultatif."
+            rows={3}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+          <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <input
+              type="checkbox"
+              checked={form.isActive}
+              onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+              className="rounded border-input accent-[hsl(var(--primary))]"
+            />
+            Visible dans la boutique
+          </label>
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="ghost" className="flex-1" onClick={() => setModal(null)}>
+              Annuler
+            </Button>
+            <Button type="submit" className="flex-1" isLoading={isCreating || isUpdating}>
+              {isEditing ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Suppression */}
+      <Dialog
+        open={toDelete !== null}
+        onClose={() => setToDelete(null)}
+        title="Supprimer la catégorie"
+        description={
+          toDelete
+            ? `« ${toDelete.name} » sera définitivement supprimée. Cette action est irréversible.`
+            : ''
+        }
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setToDelete(null)}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="flex-1"
+              isLoading={isDeleting}
+              onClick={() => toDelete && remove(toDelete.id)}
+            >
+              Supprimer
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Les produits rattachés à cette catégorie ne seront pas supprimés, mais ils n'apparaîtront
+          plus dans ce classement.
+        </p>
+      </Dialog>
     </div>
   );
 }

@@ -3,6 +3,9 @@ import { ArrowRight, Star, Truck, Shield, RotateCcw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useProducts } from '@/hooks/use-products';
 import { ProductCard } from '@/components/products/ProductCard';
+import { Skeleton } from '@/components/ui';
+import { formatPrice } from '@/utils';
+import { FREE_SHIPPING_THRESHOLD } from '@/utils/shipping';
 
 const FEATURES = [
   { icon: Truck, title: 'Livraison rapide', desc: 'Livraison à domicile dans tout le Bénin' },
@@ -46,7 +49,7 @@ const HERO_SLIDES = [
 
 
 export function HomePage() {
-  const { data: featured } = useProducts({ featured: true, limit: 8 });
+  const { data: featured, isLoading: featuredLoading } = useProducts({ featured: true, limit: 8 });
 
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -74,8 +77,9 @@ export function HomePage() {
               className="absolute inset-0 bg-cover bg-center scale-105 transition-transform duration-[8000ms]"
               style={{ backgroundImage: `url(${slide.image})` }}
             />
-            {/* Overlay dégradé — garde la lisibilité du texte */}
-            <div className="absolute inset-0 bg-gradient-to-r from-stone-900/80 via-stone-800/60 to-amber-900/30" />
+            {/* Voile dégradé — assombrit la photo pour garder le texte lisible.
+                Neutre par nature : il ne suit pas le thème, il couvre une image. */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/25" />
           </div>
         ))}
 
@@ -97,7 +101,7 @@ export function HomePage() {
                   <>
                     <h1 className="text-4xl md:text-5xl font-bold text-white leading-tight mb-6">
                       {slide.title}{' '}
-                      <span style={{ color: 'var(--color-gold)' }}>{slide.highlight}</span>{' '}
+                      <span className="text-accent">{slide.highlight}</span>{' '}
                       {slide.title.includes('votre') ? 'avec Vannys Touch' : ''}
                     </h1>
                     <p className="text-lg text-white/85 mb-8 leading-relaxed">
@@ -113,7 +117,10 @@ export function HomePage() {
                 Découvrir la boutique
                 <ArrowRight className="w-4 h-4" />
               </Link>
-              <Link to="/products?featured=true" className="btn-outline border-white/40 text-white hover:bg-white hover:text-gray-900">
+              <Link
+                to="/products?featured=true"
+                className="btn-outline border-white/60 text-white hover:bg-white hover:text-black"
+              >
                 Nos coups de cœur
               </Link>
             </div>
@@ -125,11 +132,12 @@ export function HomePage() {
           {HERO_SLIDES.map((_, index) => (
             <button
               key={index}
+              type="button"
               onClick={() => setCurrentSlide(index)}
+              aria-label={`Afficher la diapositive ${index + 1} sur ${HERO_SLIDES.length}`}
+              aria-current={index === currentSlide}
               className={`h-2 rounded-full transition-all duration-300 ${
-                index === currentSlide
-                  ? 'w-8 bg-amber-400'
-                  : 'w-2 bg-white/50 hover:bg-white/70'
+                index === currentSlide ? 'w-8 bg-accent' : 'w-2 bg-white/50 hover:bg-white/70'
               }`}
             />
           ))}
@@ -137,17 +145,17 @@ export function HomePage() {
       </section>
 
       {/* Features */}
-      <section className="border-b border-gray-100">
+      <section className="border-b border-border">
         <div className="page-container py-10">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {FEATURES.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="flex items-start gap-3">
-                <div className="p-2 rounded-lg shrink-0" style={{ background: '#fdf4e7' }}>
-                  <Icon className="w-5 h-5" style={{ color: 'var(--color-gold)' }} />
+                <div className="p-2 rounded-lg shrink-0 bg-accent/15">
+                  <Icon className="w-5 h-5 text-primary" aria-hidden="true" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm text-gray-900">{title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+                  <p className="font-semibold text-sm text-foreground">{title}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{desc}</p>
                 </div>
               </div>
             ))}
@@ -155,40 +163,50 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* Featured products */}
-      {featured && featured.data.length > 0 && (
+      {/* Coups de cœur */}
+      {(featuredLoading || (featured && featured.data.length > 0)) && (
         <section className="section">
           <div className="page-container">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Nos coups de cœur</h2>
-                <p className="text-gray-500 mt-1">Sélection de nos meilleures pièces</p>
+                <h2 className="text-2xl font-bold text-foreground">Nos coups de cœur</h2>
+                <p className="text-muted-foreground mt-1">Sélection de nos meilleures pièces</p>
               </div>
               <Link
                 to="/products"
-                className="text-sm font-medium flex items-center gap-1 hover:underline"
-                style={{ color: 'var(--color-gold)' }}
+                className="text-sm font-medium flex items-center gap-1 text-primary hover:underline"
               >
-                Tout voir <ArrowRight className="w-4 h-4" />
+                Tout voir <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-              {featured.data.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            {featuredLoading ? (
+              <div role="status" aria-busy="true">
+                <span className="sr-only">Chargement de la sélection</span>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <Skeleton key={i} className="aspect-[3/4]" />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                {featured?.data.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {/* CTA Banner */}
-      <section className="section bg-gray-900">
+      {/* Bandeau d'appel à l'action */}
+      <section className="section bg-deep">
         <div className="page-container text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">
+          <h2 className="text-3xl font-bold text-deep-foreground mb-4">
             Livraison gratuite dès{' '}
-            <span style={{ color: '#c8a96e' }}>50 000 FCFA</span>
+            <span className="text-accent">{formatPrice(FREE_SHIPPING_THRESHOLD)}</span>
           </h2>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto">
+          <p className="text-deep-muted mb-8 max-w-md mx-auto">
             Commandez maintenant et recevez vos articles directement chez vous.
           </p>
           <Link to="/products" className="btn-primary">

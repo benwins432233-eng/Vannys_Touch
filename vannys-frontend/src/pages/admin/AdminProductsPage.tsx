@@ -1,23 +1,41 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Search, Loader2, X } from 'lucide-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useCreateProduct, useUpdateProduct, useDeleteProduct } from '@/hooks/use-products';
 import { apiClient } from '@/api/client';
 import { formatPrice } from '@/utils';
-import type { Product } from '@/types';
+import {
+  Badge,
+  Button,
+  Card,
+  Dialog,
+  EmptyState,
+  IconButton,
+  InputField,
+  SelectField,
+  SkeletonList,
+  Table,
+  Td,
+  TextareaField,
+  Tr,
+} from '@/components/ui';
+import type { Category, PaginatedResponse, Product } from '@/types';
+
+/** `create` pour un nouveau produit, le produit lui-même pour une modification. */
+type ModalState = null | 'create' | Product;
 
 export function AdminProductsPage() {
-  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [modal, setModal] = useState<null | 'create' | Product>(null);
+  const [modal, setModal] = useState<ModalState>(null);
+  const [toDelete, setToDelete] = useState<Product | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-products', search, page],
     queryFn: async () => {
       const params = new URLSearchParams({ page: String(page), limit: '15' });
       if (search) params.set('search', search);
-      const res = await apiClient.get(`/products?${params}`);
+      const res = await apiClient.get<{ data: PaginatedResponse<Product> }>(`/products?${params}`);
       return res.data.data;
     },
   });
@@ -25,14 +43,16 @@ export function AdminProductsPage() {
   const { data: categories } = useQuery({
     queryKey: ['categories-admin'],
     queryFn: async () => {
-      const res = await apiClient.get('/categories/admin/all');
+      const res = await apiClient.get<{ data: Category[] }>('/categories/admin/all');
       return res.data.data;
     },
   });
 
   const { mutate: create, isPending: isCreating } = useCreateProduct();
   const { mutate: update, isPending: isUpdating } = useUpdateProduct();
-  const { mutate: remove } = useDeleteProduct();
+  const { mutate: remove, isPending: isDeleting } = useDeleteProduct();
+
+  const editing = modal !== null && modal !== 'create' ? modal : null;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -52,14 +72,14 @@ export function AdminProductsPage() {
     if (priceEl?.value) fd.append('price', priceEl.value);
     if (originalPriceEl?.value) fd.append('originalPrice', originalPriceEl.value);
 
-    // Checkboxes
+    // Cases à cocher
     const inStockEl = form.elements.namedItem('inStock') as HTMLInputElement | null;
     const isFeaturedEl = form.elements.namedItem('isFeatured') as HTMLInputElement | null;
     fd.append('inStock', inStockEl?.checked ? 'true' : 'false');
     fd.append('isFeatured', isFeaturedEl?.checked ? 'true' : 'false');
 
-    // Colors et sizes : envoyés comme string CSV
-    // Le backend les splitte avec le Transform toStringArray
+    // Couleurs et tailles : envoyées en chaîne séparée par des virgules,
+    // que le backend découpe via le Transform toStringArray
     const colorsEl = form.elements.namedItem('colors') as HTMLInputElement | null;
     const sizesEl = form.elements.namedItem('sizes') as HTMLInputElement | null;
     if (colorsEl?.value.trim()) fd.append('colors', colorsEl.value.trim());
@@ -73,226 +93,334 @@ export function AdminProductsPage() {
 
     if (modal === 'create') {
       create(fd, { onSuccess: () => setModal(null) });
-    } else if (modal) {
-      update({ id: (modal as Product).id, data: fd }, { onSuccess: () => setModal(null) });
+    } else if (editing) {
+      update({ id: editing.id, data: fd }, { onSuccess: () => setModal(null) });
     }
   };
 
-  const handleDelete = (product: Product) => {
-    if (!confirm(`Supprimer "${product.name}" ?`)) return;
-    remove(product.id);
-  };
-
-  const editing = modal !== null && modal !== 'create' ? modal as Product : null;
-
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Produits</h1>
-        <button onClick={() => setModal('create')} className="btn-primary text-sm py-2.5">
-          <Plus className="w-4 h-4" /> Nouveau produit
-        </button>
+      <div className="flex items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-foreground">Produits</h1>
+        <Button
+          onClick={() => setModal('create')}
+          leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}
+        >
+          Nouveau produit
+        </Button>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-5">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+      {/* Recherche */}
+      <div className="relative mb-5 max-w-sm">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+          aria-hidden="true"
+        />
         <input
-          type="text"
+          type="search"
+          aria-label="Rechercher un produit"
           placeholder="Rechercher un produit..."
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none w-full max-w-sm"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="input pl-9 py-2.5"
         />
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden">
+      <Card className="overflow-hidden">
         {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Chargement...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {['Image', 'Nom', 'Catégorie', 'Prix', 'Stock', 'Actions'].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {data?.data.map((product: Product) => {
-                  const img = product.images.find((i) => i.isPrimary) ?? product.images[0];
-                  return (
-                    <tr key={product.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="w-12 h-14 rounded-lg overflow-hidden bg-gray-100">
-                          {img && <img src={img.urlThumbnail || img.url} alt="" className="w-full h-full object-cover" />}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-gray-900 line-clamp-1">{product.name}</p>
-                        {product.badge && (
-                          <span className="text-xs px-1.5 py-0.5 rounded text-white" style={{ background: 'var(--color-gold)' }}>
-                            {product.badge}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{product.category?.name}</td>
-                      <td className="px-4 py-3 font-semibold">{formatPrice(product.price)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${product.inStock ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                          {product.inStock ? 'En stock' : 'Épuisé'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button onClick={() => setModal(product)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDelete(product)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="p-5">
+            <SkeletonList count={5} label="Chargement des produits" />
           </div>
+        ) : data?.data.length === 0 ? (
+          <EmptyState
+            title={search ? 'Aucun produit ne correspond' : 'Aucun produit'}
+            description={
+              search
+                ? 'Essayez un autre mot-clé.'
+                : 'Ajoutez un premier article pour remplir la boutique.'
+            }
+            action={
+              search ? (
+                <Button variant="outline" onClick={() => setSearch('')}>
+                  Effacer la recherche
+                </Button>
+              ) : (
+                <Button onClick={() => setModal('create')}>Nouveau produit</Button>
+              )
+            }
+          />
+        ) : (
+          <Table
+            caption="Liste des produits du catalogue"
+            columns={['Image', 'Nom', 'Catégorie', 'Prix', 'Stock', 'Actions']}
+          >
+            {data?.data.map((product) => {
+              const img = product.images.find((i) => i.isPrimary) ?? product.images[0];
+              return (
+                <Tr key={product.id}>
+                  <Td>
+                    <div className="w-12 h-14 rounded-lg overflow-hidden bg-muted">
+                      {img && (
+                        <img
+                          src={img.urlThumbnail || img.url}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                  </Td>
+                  <Td>
+                    <p className="font-medium text-foreground line-clamp-1">{product.name}</p>
+                    {product.badge && (
+                      <Badge tone="gold" className="mt-1">
+                        {product.badge}
+                      </Badge>
+                    )}
+                  </Td>
+                  <Td>{product.category?.name}</Td>
+                  <Td className="font-semibold text-foreground whitespace-nowrap">
+                    {formatPrice(product.price)}
+                  </Td>
+                  <Td>
+                    <Badge tone={product.inStock ? 'success' : 'destructive'}>
+                      {product.inStock ? 'En stock' : 'Épuisé'}
+                    </Badge>
+                  </Td>
+                  <Td>
+                    <div className="flex gap-1">
+                      <IconButton
+                        label={`Modifier ${product.name}`}
+                        tone="primary"
+                        icon={<Pencil className="w-4 h-4" />}
+                        onClick={() => setModal(product)}
+                      />
+                      <IconButton
+                        label={`Supprimer ${product.name}`}
+                        tone="destructive"
+                        icon={<Trash2 className="w-4 h-4" />}
+                        onClick={() => setToDelete(product)}
+                      />
+                    </div>
+                  </Td>
+                </Tr>
+              );
+            })}
+          </Table>
         )}
-      </div>
+      </Card>
 
       {data && data.meta.lastPage > 1 && (
-        <div className="flex justify-end gap-2 mt-4">
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40">Précédent</button>
-          <span className="px-3 py-1.5 text-sm text-gray-600">{page} / {data.meta.lastPage}</span>
-          <button disabled={page >= data.meta.lastPage} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 border rounded-lg text-sm disabled:opacity-40">Suivant</button>
-        </div>
+        <nav className="flex justify-end items-center gap-2 mt-4" aria-label="Pagination">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Précédent
+          </Button>
+          <span className="px-3 text-sm text-muted-foreground" aria-live="polite">
+            Page {page} sur {data.meta.lastPage}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= data.meta.lastPage}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Suivant
+          </Button>
+        </nav>
       )}
 
-      {/* Modal */}
-      {modal !== null && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="font-semibold text-lg">
-                {editing ? `Modifier : ${editing.name}` : 'Nouveau produit'}
-              </h2>
-              <button onClick={() => setModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Création / modification */}
+      <Dialog
+        open={modal !== null}
+        onClose={() => setModal(null)}
+        title={editing ? `Modifier : ${editing.name}` : 'Nouveau produit'}
+        description={
+          editing
+            ? 'Modifiez la fiche produit. Les images actuelles sont conservées si vous n’en ajoutez pas.'
+            : 'Renseignez la fiche du produit : nom, prix, catégorie et au moins une photo.'
+        }
+      >
+        {/* La clé force la réinitialisation des champs non contrôlés d'un produit à l'autre. */}
+        <form key={editing?.id ?? 'create'} onSubmit={handleSubmit} className="space-y-4">
+          <InputField label="Nom" name="name" required defaultValue={editing?.name} />
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="label">Nom *</label>
-                <input name="name" required defaultValue={editing?.name} className="input" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Prix (FCFA) *</label>
-                  <input name="price" type="number" required defaultValue={Number(editing?.price) || ''} className="input" />
-                </div>
-                <div>
-                  <label className="label">Prix original (barré)</label>
-                  <input name="originalPrice" type="number" defaultValue={Number(editing?.originalPrice) || ''} className="input" />
-                </div>
-              </div>
-
-              <div>
-                <label className="label">Catégorie *</label>
-                <select name="categoryId" required defaultValue={editing?.category?.id ?? ''} className="input">
-                  <option value="">Sélectionner...</option>
-                  {(categories as any[])?.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="label">Description</label>
-                <textarea name="description" rows={3} defaultValue={editing?.description ?? ''} className="input resize-none" />
-              </div>
-
-              <div>
-                <label className="label">Badge (ex : Nouveau, Promo)</label>
-                <input name="badge" defaultValue={editing?.badge ?? ''} className="input" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Couleurs (séparées par des virgules)</label>
-                  <input
-                    name="colors"
-                    defaultValue={editing?.variants.filter(v => v.type === 'COLOR').map(v => v.value).join(', ')}
-                    className="input"
-                    placeholder="Rouge, Bleu, Vert"
-                  />
-                </div>
-                <div>
-                  <label className="label">Tailles (séparées par des virgules)</label>
-                  <input
-                    name="sizes"
-                    defaultValue={editing?.variants.filter(v => v.type === 'SIZE').map(v => v.value).join(', ')}
-                    className="input"
-                    placeholder="XS, S, M, L, XL"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="inStock"
-                    id="inStock"
-                    defaultChecked={editing?.inStock ?? true}
-                    className="rounded"
-                  />
-                  <label htmlFor="inStock" className="text-sm font-medium text-gray-700">En stock</label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="isFeatured"
-                    id="isFeatured"
-                    defaultChecked={editing?.isFeatured ?? false}
-                    className="rounded"
-                  />
-                  <label htmlFor="isFeatured" className="text-sm font-medium text-gray-700">Coup de cœur</label>
-                </div>
-              </div>
-
-              <div>
-                <label className="label">
-                  Images{!editing ? ' *' : ' (laisser vide pour garder les actuelles)'}
-                </label>
-                <input type="file" name="images" multiple accept="image/*" className="input py-2 text-sm" />
-                {editing?.images && editing.images.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {editing.images.map(img => (
-                      <img key={img.id} src={img.urlThumbnail || img.url} alt="" className="w-14 h-14 rounded-lg object-cover border" />
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModal(null)} className="btn-ghost flex-1">Annuler</button>
-                <button type="submit" disabled={isCreating || isUpdating} className="btn-primary flex-1">
-                  {(isCreating || isUpdating)
-                    ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : editing ? 'Enregistrer' : 'Créer le produit'
-                  }
-                </button>
-              </div>
-            </form>
+          <div className="grid grid-cols-2 gap-4">
+            <InputField
+              label="Prix (FCFA)"
+              name="price"
+              type="number"
+              min={0}
+              required
+              defaultValue={Number(editing?.price) || ''}
+            />
+            <InputField
+              label="Prix original (barré)"
+              name="originalPrice"
+              type="number"
+              min={0}
+              hint="Facultatif."
+              defaultValue={Number(editing?.originalPrice) || ''}
+            />
           </div>
-        </div>
-      )}
+
+          <SelectField
+            label="Catégorie"
+            name="categoryId"
+            required
+            defaultValue={editing?.category?.id ?? ''}
+          >
+            <option value="">Sélectionner...</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </SelectField>
+
+          <TextareaField
+            label="Description"
+            name="description"
+            rows={3}
+            defaultValue={editing?.description ?? ''}
+          />
+
+          <InputField
+            label="Badge"
+            name="badge"
+            hint="Par exemple : Nouveau, Promo."
+            defaultValue={editing?.badge ?? ''}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <InputField
+              label="Couleurs"
+              name="colors"
+              hint="Séparées par des virgules."
+              placeholder="Rouge, Bleu, Vert"
+              defaultValue={editing?.variants
+                .filter((v) => v.type === 'COLOR')
+                .map((v) => v.value)
+                .join(', ')}
+            />
+            <InputField
+              label="Tailles"
+              name="sizes"
+              hint="Séparées par des virgules."
+              placeholder="XS, S, M, L, XL"
+              defaultValue={editing?.variants
+                .filter((v) => v.type === 'SIZE')
+                .map((v) => v.value)
+                .join(', ')}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                name="inStock"
+                defaultChecked={editing?.inStock ?? true}
+                className="rounded border-input accent-[hsl(var(--primary))]"
+              />
+              En stock
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <input
+                type="checkbox"
+                name="isFeatured"
+                defaultChecked={editing?.isFeatured ?? false}
+                className="rounded border-input accent-[hsl(var(--primary))]"
+              />
+              Coup de cœur
+            </label>
+          </div>
+
+          <div>
+            <InputField
+              label="Images"
+              name="images"
+              type="file"
+              multiple
+              accept="image/*"
+              required={!editing}
+              hint={
+                editing
+                  ? 'Laisser vide pour conserver les images actuelles.'
+                  : 'Au moins une photo du produit.'
+              }
+              className="py-2 text-sm"
+            />
+            {editing?.images && editing.images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {editing.images.map((img) => (
+                  <img
+                    key={img.id}
+                    src={img.urlThumbnail || img.url}
+                    alt=""
+                    className="w-14 h-14 rounded-lg object-cover border border-border"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="ghost" className="flex-1" onClick={() => setModal(null)}>
+              Annuler
+            </Button>
+            <Button type="submit" className="flex-1" isLoading={isCreating || isUpdating}>
+              {editing ? 'Enregistrer' : 'Créer le produit'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Suppression */}
+      <Dialog
+        open={toDelete !== null}
+        onClose={() => setToDelete(null)}
+        title="Supprimer le produit"
+        description={
+          toDelete
+            ? `« ${toDelete.name} » sera retiré du catalogue. Cette action est irréversible.`
+            : ''
+        }
+        footer={
+          <div className="flex gap-3 w-full">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex-1"
+              onClick={() => setToDelete(null)}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="flex-1"
+              isLoading={isDeleting}
+              onClick={() =>
+                toDelete && remove(toDelete.id, { onSuccess: () => setToDelete(null) })
+              }
+            >
+              Supprimer
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          Les commandes déjà passées conservent le nom et le prix de l'article : leur historique
+          n'est pas modifié.
+        </p>
+      </Dialog>
     </div>
   );
 }

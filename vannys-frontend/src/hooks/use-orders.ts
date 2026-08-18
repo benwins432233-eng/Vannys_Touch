@@ -4,6 +4,7 @@ import { ordersApi, type CreateOrderPayload } from '@/api/orders.api';
 import type { OrderStatus } from '@/types';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '@/store/cart.store';
+import { getErrorMessage } from '@/utils';
 
 export const ORDERS_KEY = 'orders';
 
@@ -33,8 +34,8 @@ export const useCreateOrder = () => {
       toast.success('Commande passée avec succès !');
       navigate(`/orders/${order.id}`);
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Erreur lors de la commande');
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la commande'));
     },
   });
 };

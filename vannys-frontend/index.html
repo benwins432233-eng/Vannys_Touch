@@ -5,6 +5,25 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Vannys Touch – Boutique de mode en ligne" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Applique le thème mémorisé AVANT le premier rendu. Sans cela, une page
+      // choisie en sombre s'affiche d'abord en clair, le temps que l'application
+      // démarre et relise le stockage local.
+      (function () {
+        try {
+          var stored = localStorage.getItem('vannys-theme');
+          var mode = stored ? JSON.parse(stored).state.mode : 'system';
+          var dark =
+            mode === 'dark' ||
+            (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (e) {
+          // Stockage indisponible (navigation privée stricte) : thème clair par défaut.
+        }
+      })();
+    </script>
     <title>Vannys Touch</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

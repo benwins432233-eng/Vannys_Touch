@@ -29,6 +29,13 @@
     --primary: 36 39% 39%;
     --primary-foreground: 0 0% 100%;
 
+    /* Surface profonde — pied de page et barre latérale admin : sombres dans
+       les deux thèmes, par choix graphique et non par oubli de migration. */
+    --deep: 24 10% 12%;
+    --deep-foreground: 30 15% 90%;
+    --deep-muted: 30 8% 62%;
+    --deep-border: 24 8% 24%;
+
     /* Traits et champs */
     --border: 30 15% 89%;
     --input: 30 15% 85%;
@@ -67,6 +74,12 @@
     /* Sur fond sombre, l'or clair porte du texte sombre : plus lisible */
     --primary: 39 45% 61%;
     --primary-foreground: 24 10% 10%;
+
+    /* Un cran plus sombre que le fond de page, pour rester distinguable */
+    --deep: 24 10% 5%;
+    --deep-foreground: 30 15% 90%;
+    --deep-muted: 30 8% 62%;
+    --deep-border: 24 8% 18%;
 
     --border: 24 8% 22%;
     --input: 24 8% 26%;

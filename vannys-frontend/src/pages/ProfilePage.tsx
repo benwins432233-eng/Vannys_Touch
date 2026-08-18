@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Loader2, User, Package, LogOut } from 'lucide-react';
+import { User, Package, LogOut } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth.store';
 import { useLogout } from '@/hooks/use-auth';
 import { apiClient } from '@/api/client';
+import { Badge, Button, Card, InputField } from '@/components/ui';
 
 export function ProfilePage() {
   const { user, setUser } = useAuthStore();
@@ -32,80 +33,86 @@ export function ProfilePage() {
   return (
     <div className="section">
       <div className="page-container max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Mon profil</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-8">Mon profil</h1>
 
         <div className="space-y-5">
-          {/* Avatar card */}
-          <div className="card p-6 flex items-center gap-5">
-            <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shrink-0"
-              style={{ background: 'var(--color-gold)' }}>
+          {/* Identité */}
+          <Card className="p-6 flex items-center gap-5">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center shrink-0
+                         bg-primary text-primary-foreground text-2xl font-bold"
+              aria-hidden="true"
+            >
               {user?.firstName?.[0]?.toUpperCase()}
             </div>
-            <div>
-              <p className="font-semibold text-gray-900">{user?.firstName} {user?.lastName}</p>
-              <p className="text-sm text-gray-500">{user?.email}</p>
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full mt-1 inline-block ${
-                user?.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
-              }`}>
+            <div className="min-w-0">
+              <p className="font-semibold text-foreground truncate">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-sm text-muted-foreground truncate">{user?.email}</p>
+              <Badge tone={user?.role === 'admin' ? 'gold' : 'success'} className="mt-1.5">
                 {user?.role === 'admin' ? 'Administrateur' : 'Client'}
-              </span>
+              </Badge>
             </div>
-          </div>
+          </Card>
 
-          {/* Edit form */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-5 flex items-center gap-2">
-              <User className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+          {/* Informations modifiables */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-5 flex items-center gap-2">
+              <User className="w-4 h-4 text-primary" aria-hidden="true" />
               Modifier mes informations
             </h2>
             <form
-              onSubmit={(e) => { e.preventDefault(); update(form); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                update(form);
+              }}
               className="grid sm:grid-cols-2 gap-4"
             >
-              <div>
-                <label className="label">Prénom</label>
-                <input
-                  className="input"
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Nom</label>
-                <input
-                  className="input"
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                />
-              </div>
+              <InputField
+                label="Prénom"
+                autoComplete="given-name"
+                value={form.firstName}
+                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+              />
+              <InputField
+                label="Nom"
+                autoComplete="family-name"
+                value={form.lastName}
+                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+              />
               <div className="sm:col-span-2">
-                <label className="label">Téléphone</label>
-                <input
+                <InputField
+                  label="Téléphone"
                   type="tel"
-                  className="input"
+                  autoComplete="tel"
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
               <div className="sm:col-span-2">
-                <button type="submit" disabled={isPending} className="btn-primary">
-                  {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Mise à jour...</> : 'Enregistrer'}
-                </button>
+                <Button type="submit" isLoading={isPending}>
+                  {isPending ? 'Mise à jour...' : 'Enregistrer'}
+                </Button>
               </div>
             </form>
-          </div>
+          </Card>
 
-          {/* Quick links */}
+          {/* Raccourcis */}
           <div className="grid grid-cols-2 gap-4">
-            <Link to="/orders" className="card p-5 flex items-center gap-3 hover:shadow-card-hover transition-shadow">
-              <Package className="w-5 h-5" style={{ color: 'var(--color-gold)' }} />
-              <span className="font-medium text-gray-900">Mes commandes</span>
+            <Link
+              to="/orders"
+              className="card p-5 flex items-center gap-3 transition-shadow hover:shadow-card-hover"
+            >
+              <Package className="w-5 h-5 text-primary" aria-hidden="true" />
+              <span className="font-medium text-foreground">Mes commandes</span>
             </Link>
             <button
+              type="button"
               onClick={() => logout()}
-              className="card p-5 flex items-center gap-3 hover:shadow-card-hover transition-shadow text-red-500"
+              className="card p-5 flex items-center gap-3 text-destructive transition-shadow hover:shadow-card-hover"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-5 h-5" aria-hidden="true" />
               <span className="font-medium">Déconnexion</span>
             </button>
           </div>

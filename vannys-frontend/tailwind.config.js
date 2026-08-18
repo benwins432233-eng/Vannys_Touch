@@ -24,6 +24,12 @@ export default {
           DEFAULT: token('muted'),
           foreground: token('muted-foreground'),
         },
+        deep: {
+          DEFAULT: token('deep'),
+          foreground: token('deep-foreground'),
+          muted: token('deep-muted'),
+          border: token('deep-border'),
+        },
         primary: {
           DEFAULT: token('primary'),
           foreground: token('primary-foreground'),

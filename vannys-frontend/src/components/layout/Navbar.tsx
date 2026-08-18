@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
 import { useLogout } from '@/hooks/use-auth';
+import { ThemeToggle } from '@/components/ui';
 
 export function Navbar() {
   const { isAuthenticated, user } = useAuthStore();
@@ -18,14 +19,12 @@ export function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
+    <header className="sticky top-0 z-40 bg-background border-b border-border shadow-sm">
       <div className="page-container">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-gold)' }}>
-              Vannys Touch
-            </span>
+            <span className="text-xl font-bold tracking-tight text-primary">Vannys Touch</span>
           </Link>
 
           {/* Desktop nav */}
@@ -37,7 +36,7 @@ export function Navbar() {
                 end={l.to === '/'}
                 className={({ isActive }) =>
                   `text-sm font-medium transition-colors ${
-                    isActive ? 'text-[#c8a96e]' : 'text-gray-600 hover:text-gray-900'
+                    isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
                   }`
                 }
               >
@@ -48,15 +47,19 @@ export function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            <ThemeToggle className="hidden sm:inline-flex" />
+
             {/* Cart */}
             <button
               onClick={toggleCart}
-              className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Panier"
+              className="relative p-2 rounded-token hover:bg-muted transition-colors"
+              aria-label={
+                itemCount > 0 ? `Panier, ${itemCount} article(s)` : 'Panier, vide'
+              }
             >
-              <ShoppingBag className="w-5 h-5 text-gray-700" />
+              <ShoppingBag className="w-5 h-5 text-foreground" aria-hidden="true" />
               {itemCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 text-xs font-bold text-white rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-gold)' }}>
+                <span className="absolute -top-1 -right-1 w-5 h-5 text-xs font-bold rounded-full flex items-center justify-center bg-accent text-accent-foreground">
                   {itemCount > 9 ? '9+' : itemCount}
                 </span>
               )}
@@ -67,16 +70,20 @@ export function Navbar() {
               <div className="hidden md:flex items-center gap-2">
                 {user?.role === 'admin' && (
                   <Link to="/admin" className="btn-ghost text-sm">
-                    <LayoutDashboard className="w-4 h-4" />
+                    <LayoutDashboard className="w-4 h-4" aria-hidden="true" />
                     Admin
                   </Link>
                 )}
                 <Link to="/profile" className="btn-ghost text-sm">
-                  <User className="w-4 h-4" />
+                  <User className="w-4 h-4" aria-hidden="true" />
                   {user?.firstName}
                 </Link>
-                <button onClick={() => logout()} className="btn-ghost text-sm text-red-500 hover:bg-red-50">
-                  <LogOut className="w-4 h-4" />
+                <button
+                  onClick={() => logout()}
+                  aria-label="Se déconnecter"
+                  className="btn-ghost text-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <LogOut className="w-4 h-4" aria-hidden="true" />
                 </button>
               </div>
             ) : (
@@ -90,17 +97,23 @@ export function Navbar() {
 
             {/* Mobile menu toggle */}
             <button
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+              className="md:hidden p-2 rounded-token hover:bg-muted transition-colors"
               onClick={() => setMenuOpen(!menuOpen)}
+              aria-expanded={menuOpen}
+              aria-label={menuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
             >
-              {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {menuOpen ? (
+                <X className="w-5 h-5" aria-hidden="true" />
+              ) : (
+                <Menu className="w-5 h-5" aria-hidden="true" />
+              )}
             </button>
           </div>
         </div>
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden py-4 border-t border-gray-100 space-y-2">
+          <div className="md:hidden py-4 border-t border-border space-y-2">
             {navLinks.map((l) => (
               <NavLink
                 key={l.to}
@@ -108,31 +121,41 @@ export function Navbar() {
                 end={l.to === '/'}
                 onClick={() => setMenuOpen(false)}
                 className={({ isActive }) =>
-                  `block px-3 py-2 rounded-lg text-sm font-medium ${
-                    isActive ? 'bg-amber-50 text-[#c8a96e]' : 'text-gray-700 hover:bg-gray-50'
+                  `block px-3 py-2 rounded-token text-sm font-medium ${
+                    isActive
+                      ? 'bg-accent/15 text-primary'
+                      : 'text-foreground hover:bg-muted'
                   }`
                 }
               >
                 {l.label}
               </NavLink>
             ))}
+
             {isAuthenticated ? (
               <>
                 {user?.role === 'admin' && (
-                  <Link to="/admin" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Dashboard admin</Link>
+                  <Link to="/admin" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-muted rounded-token">Dashboard admin</Link>
                 )}
-                <Link to="/profile" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Mon profil</Link>
-                <Link to="/orders" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Mes commandes</Link>
-                <button onClick={() => { logout(); setMenuOpen(false); }} className="block w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-50 rounded-lg">
+                <Link to="/profile" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-muted rounded-token">Mon profil</Link>
+                <Link to="/orders" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-muted rounded-token">Mes commandes</Link>
+                <button
+                  onClick={() => { logout(); setMenuOpen(false); }}
+                  className="block w-full text-left px-3 py-2 text-sm text-destructive hover:bg-destructive/10 rounded-token"
+                >
                   Déconnexion
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Connexion</Link>
-                <Link to="/register" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-medium text-[#c8a96e] hover:bg-amber-50 rounded-lg">S'inscrire</Link>
+                <Link to="/login" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm text-foreground hover:bg-muted rounded-token">Connexion</Link>
+                <Link to="/register" onClick={() => setMenuOpen(false)} className="block px-3 py-2 text-sm font-medium text-primary hover:bg-accent/15 rounded-token">S'inscrire</Link>
               </>
             )}
+
+            <div className="pt-2 px-3 sm:hidden">
+              <ThemeToggle />
+            </div>
           </div>
         )}
       </div>

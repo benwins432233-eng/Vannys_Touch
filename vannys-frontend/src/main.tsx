@@ -31,8 +31,21 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           position="top-right"
           toastOptions={{
             duration: 3500,
-            style: { fontFamily: 'inherit', fontSize: '14px' },
-            success: { iconTheme: { primary: '#c8a96e', secondary: '#fff' } },
+            // Les notifications suivent les jetons : un bandeau blanc sur une
+            // page sombre trahirait le thème choisi.
+            style: {
+              fontFamily: 'inherit',
+              fontSize: '14px',
+              background: 'hsl(var(--card))',
+              color: 'hsl(var(--card-foreground))',
+              border: '1px solid hsl(var(--border))',
+            },
+            success: {
+              iconTheme: { primary: 'hsl(var(--success))', secondary: 'hsl(var(--card))' },
+            },
+            error: {
+              iconTheme: { primary: 'hsl(var(--destructive))', secondary: 'hsl(var(--card))' },
+            },
           }}
         />
       </QueryClientProvider>

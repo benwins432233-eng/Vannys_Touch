@@ -5,6 +5,8 @@ import { useProducts } from '@/hooks/use-products';
 import { useQuery } from '@tanstack/react-query';
 import { categoriesApi } from '@/api/categories.api';
 import { ProductCard } from '@/components/products/ProductCard';
+import { Button, Card, EmptyState, InputField, SelectField, Skeleton } from '@/components/ui';
+import { cn } from '@/utils';
 import type { ProductFilters } from '@/types';
 
 export function ProductsPage() {
@@ -16,8 +18,8 @@ export function ProductsPage() {
     search: searchParams.get('search') || undefined,
     minPrice: searchParams.get('minPrice') ? Number(searchParams.get('minPrice')) : undefined,
     maxPrice: searchParams.get('maxPrice') ? Number(searchParams.get('maxPrice')) : undefined,
-    sort: (searchParams.get('sort') as any) || 'createdAt',
-    dir: (searchParams.get('dir') as any) || 'desc',
+    sort: (searchParams.get('sort') as ProductFilters['sort']) || 'createdAt',
+    dir: (searchParams.get('dir') as ProductFilters['dir']) || 'desc',
     page: Number(searchParams.get('page') || 1),
     limit: 12,
   };
@@ -38,141 +40,161 @@ export function ProductsPage() {
 
   const clearFilters = () => setSearchParams({});
 
-  const hasFilters =
-    filters.category || filters.search || filters.minPrice || filters.maxPrice;
+  const hasFilters = filters.category || filters.search || filters.minPrice || filters.maxPrice;
+
+  const categoryName =
+    categories?.find((c) => c.slug === filters.category)?.name ?? filters.category;
 
   return (
     <div className="section">
       <div className="page-container">
-        {/* Header */}
+        {/* En-tête */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Boutique</h1>
+            <h1 className="text-2xl font-bold text-foreground">Boutique</h1>
             {data && (
-              <p className="text-sm text-gray-500 mt-1">{data.meta.total} article(s)</p>
+              <p className="text-sm text-muted-foreground mt-1" aria-live="polite">
+                {data.meta.total} article(s)
+              </p>
             )}
           </div>
-          <div className="flex gap-3">
-            {/* Search */}
+          <div className="flex flex-wrap gap-3">
+            {/* Recherche */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none"
+                aria-hidden="true"
+              />
               <input
-                type="text"
+                type="search"
+                aria-label="Rechercher un produit"
                 placeholder="Rechercher..."
                 defaultValue={filters.search}
                 onChange={(e) => setParam('search', e.target.value || undefined)}
-                className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 w-56"
-                style={{ '--tw-ring-color': 'var(--color-gold)' } as any}
+                className="input pl-9 w-56 py-2.5"
               />
             </div>
-            {/* Sort */}
+            {/* Tri */}
             <select
+              aria-label="Trier les produits"
               value={`${filters.sort}-${filters.dir}`}
               onChange={(e) => {
                 const [sort, dir] = e.target.value.split('-');
-                setParam('sort', sort);
-                setParam('dir', dir);
+                const next = new URLSearchParams(searchParams);
+                next.set('sort', sort);
+                next.set('dir', dir);
+                next.delete('page');
+                setSearchParams(next);
               }}
-              className="border border-gray-200 rounded-lg text-sm px-3 py-2.5 focus:outline-none bg-white"
+              className="input w-auto py-2.5"
             >
               <option value="createdAt-desc">Plus récents</option>
               <option value="price-asc">Prix croissant</option>
               <option value="price-desc">Prix décroissant</option>
               <option value="rating-desc">Mieux notés</option>
             </select>
-            {/* Filter toggle */}
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-2 px-4 py-2.5 border rounded-lg text-sm font-medium transition-colors ${
-                showFilters ? 'bg-gray-900 text-white border-gray-900' : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-              }`}
+            {/* Panneau de filtres */}
+            <Button
+              variant={showFilters ? 'primary' : 'outline'}
+              onClick={() => setShowFilters((v) => !v)}
+              aria-expanded={showFilters}
+              aria-controls="panneau-filtres"
+              leftIcon={<SlidersHorizontal className="w-4 h-4" aria-hidden="true" />}
             >
-              <SlidersHorizontal className="w-4 h-4" />
               Filtres
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* Filter bar */}
+        {/* Filtres */}
         {showFilters && (
-          <div className="card p-5 mb-6">
+          <Card id="panneau-filtres" className="p-5 mb-6">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {/* Category */}
-              <div>
-                <label className="label">Catégorie</label>
-                <select
-                  value={filters.category || ''}
-                  onChange={(e) => setParam('category', e.target.value || undefined)}
-                  className="input"
-                >
-                  <option value="">Toutes</option>
-                  {categories?.map((c) => (
-                    <option key={c.id} value={c.slug}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              {/* Price range */}
-              <div>
-                <label className="label">Prix minimum (FCFA)</label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  defaultValue={filters.minPrice}
-                  onBlur={(e) => setParam('minPrice', e.target.value || undefined)}
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="label">Prix maximum (FCFA)</label>
-                <input
-                  type="number"
-                  placeholder="Sans limite"
-                  defaultValue={filters.maxPrice}
-                  onBlur={(e) => setParam('maxPrice', e.target.value || undefined)}
-                  className="input"
-                />
-              </div>
+              <SelectField
+                label="Catégorie"
+                value={filters.category || ''}
+                onChange={(e) => setParam('category', e.target.value || undefined)}
+              >
+                <option value="">Toutes</option>
+                {categories?.map((c) => (
+                  <option key={c.id} value={c.slug}>
+                    {c.name}
+                  </option>
+                ))}
+              </SelectField>
+              <InputField
+                label="Prix minimum (FCFA)"
+                type="number"
+                min={0}
+                placeholder="0"
+                defaultValue={filters.minPrice}
+                onBlur={(e) => setParam('minPrice', e.target.value || undefined)}
+              />
+              <InputField
+                label="Prix maximum (FCFA)"
+                type="number"
+                min={0}
+                placeholder="Sans limite"
+                defaultValue={filters.maxPrice}
+                onBlur={(e) => setParam('maxPrice', e.target.value || undefined)}
+              />
             </div>
-          </div>
+          </Card>
         )}
 
-        {/* Active filters */}
+        {/* Filtres actifs */}
         {hasFilters && (
-          <div className="flex flex-wrap gap-2 mb-5">
+          <div className="flex flex-wrap items-center gap-2 mb-5">
             {filters.category && (
-              <span className="flex items-center gap-1 bg-amber-50 text-amber-800 text-xs font-medium px-3 py-1.5 rounded-full">
-                {categories?.find((c) => c.slug === filters.category)?.name ?? filters.category}
-                <button onClick={() => setParam('category', undefined)}><X className="w-3 h-3" /></button>
-              </span>
+              <FilterChip label={categoryName ?? ''} onRemove={() => setParam('category', undefined)} />
             )}
             {filters.search && (
-              <span className="flex items-center gap-1 bg-amber-50 text-amber-800 text-xs font-medium px-3 py-1.5 rounded-full">
-                "{filters.search}"
-                <button onClick={() => setParam('search', undefined)}><X className="w-3 h-3" /></button>
-              </span>
+              <FilterChip
+                label={`« ${filters.search} »`}
+                onRemove={() => setParam('search', undefined)}
+              />
             )}
-            <button onClick={clearFilters} className="text-xs text-gray-400 hover:text-gray-700 underline">
+            {filters.minPrice !== undefined && (
+              <FilterChip
+                label={`À partir de ${filters.minPrice} FCFA`}
+                onRemove={() => setParam('minPrice', undefined)}
+              />
+            )}
+            {filters.maxPrice !== undefined && (
+              <FilterChip
+                label={`Jusqu'à ${filters.maxPrice} FCFA`}
+                onRemove={() => setParam('maxPrice', undefined)}
+              />
+            )}
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
               Effacer tout
-            </button>
+            </Button>
           </div>
         )}
 
-        {/* Products grid */}
+        {/* Grille */}
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="rounded-xl bg-gray-100 animate-pulse aspect-[3/4]" />
-            ))}
+          <div role="status" aria-busy="true">
+            <span className="sr-only">Chargement des produits</span>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+              {Array.from({ length: 8 }, (_, i) => (
+                <Skeleton key={i} className="aspect-[3/4]" />
+              ))}
+            </div>
           </div>
         ) : data?.data.length === 0 ? (
-          <div className="text-center py-20">
-            <Search className="w-10 h-10 text-gray-200 mx-auto mb-4" />
-            <p className="font-medium text-gray-600">Aucun produit trouvé</p>
-            <p className="text-sm text-gray-400 mt-1">Essayez de modifier vos filtres</p>
-            <button onClick={clearFilters} className="btn-outline mt-4 text-sm py-2">
-              Réinitialiser
-            </button>
-          </div>
+          <EmptyState
+            icon={<Search className="w-10 h-10" />}
+            title="Aucun produit trouvé"
+            description="Essayez de modifier vos filtres ou votre recherche."
+            action={
+              hasFilters ? (
+                <Button variant="outline" onClick={clearFilters}>
+                  Réinitialiser les filtres
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {data?.data.map((p) => (
@@ -183,29 +205,52 @@ export function ProductsPage() {
 
         {/* Pagination */}
         {data && data.meta.lastPage > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-10">
-            {Array.from({ length: data.meta.lastPage }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => {
-                  const next = new URLSearchParams(searchParams);
-                  next.set('page', String(p));
-                  setSearchParams(next);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
-                  p === filters.page
-                    ? 'text-white'
-                    : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-                style={p === filters.page ? { background: 'var(--color-gold)' } : {}}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          <nav className="flex items-center justify-center gap-2 mt-10" aria-label="Pagination">
+            {Array.from({ length: data.meta.lastPage }, (_, i) => i + 1).map((p) => {
+              const current = p === filters.page;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  aria-label={`Page ${p}`}
+                  aria-current={current ? 'page' : undefined}
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.set('page', String(p));
+                    setSearchParams(next);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  className={cn(
+                    'w-9 h-9 rounded-token text-sm font-medium transition-colors',
+                    current
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border text-foreground hover:bg-muted',
+                  )}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </nav>
         )}
       </div>
     </div>
+  );
+}
+
+/** Puce de filtre actif, retirable individuellement (§4.6). */
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-accent/20 text-foreground text-xs font-medium pl-3 pr-1.5 py-1.5 rounded-full">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Retirer le filtre ${label}`}
+        className="p-0.5 rounded-full transition-colors hover:bg-foreground/10"
+      >
+        <X className="w-3 h-3" aria-hidden="true" />
+      </button>
+    </span>
   );
 }

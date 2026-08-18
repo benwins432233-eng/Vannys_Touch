@@ -1,126 +1,151 @@
-import { useParams, Link } from 'react-router-dom';
-import { ChevronLeft, Package, MapPin, Truck } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { ChevronLeft, Package, MapPin, Truck, Phone } from 'lucide-react';
 import { useOrder } from '@/hooks/use-orders';
 import { OrderStatusBadge } from '@/components/orders/OrderStatusBadge';
 import { formatPrice, formatDateTime } from '@/utils';
+import { Card, ErrorState, LinkButton, Skeleton } from '@/components/ui';
 
 export function OrderDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: order, isLoading } = useOrder(id!);
+  const { data: order, isLoading, isError, refetch } = useOrder(id!);
 
   if (isLoading) {
     return (
-      <div className="section page-container max-w-3xl animate-pulse">
-        <div className="h-8 bg-gray-100 rounded w-48 mb-8" />
+      <div className="section page-container max-w-3xl" role="status" aria-busy="true">
+        <span className="sr-only">Chargement de la commande</span>
+        <Skeleton className="h-8 w-48 mb-8" />
         <div className="space-y-4">
-          <div className="card p-6 h-32" />
-          <div className="card p-6 h-48" />
+          <Skeleton className="h-32" />
+          <Skeleton className="h-48" />
         </div>
       </div>
     );
   }
 
-  if (!order) return null;
+  if (isError || !order) {
+    return (
+      <div className="section page-container max-w-3xl">
+        <ErrorState
+          title="Commande introuvable"
+          description="Cette commande n'existe pas ou n'est plus accessible depuis votre compte."
+          onRetry={() => refetch()}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="section">
       <div className="page-container max-w-3xl">
-        <Link to="/orders" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-8">
-          <ChevronLeft className="w-4 h-4" /> Mes commandes
-        </Link>
+        <LinkButton to="/orders" variant="ghost" size="sm" className="mb-8 -ml-3">
+          <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Mes commandes
+        </LinkButton>
 
-        {/* Header */}
+        {/* En-tête */}
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Commande {order.reference}</h1>
-            <p className="text-sm text-gray-500 mt-1">{formatDateTime(order.createdAt)}</p>
+            <h1 className="text-xl font-bold text-foreground">Commande {order.reference}</h1>
+            <p className="text-sm text-muted-foreground mt-1">{formatDateTime(order.createdAt)}</p>
           </div>
           <OrderStatusBadge status={order.status} />
         </div>
 
         <div className="space-y-5">
-          {/* Items */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Package className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+          {/* Articles */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+              <Package className="w-4 h-4 text-primary" aria-hidden="true" />
               Articles commandés
             </h2>
-            <div className="divide-y divide-gray-50">
+            <ul className="divide-y divide-border">
               {order.items.map((item) => (
-                <div key={item.id} className="flex gap-4 py-4 first:pt-0 last:pb-0">
-                  <div className="w-16 h-20 rounded-lg overflow-hidden bg-gray-100 shrink-0">
+                <li key={item.id} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+                  <div className="w-16 h-20 rounded-lg overflow-hidden bg-muted shrink-0">
                     {item.productImageUrl && (
-                      <img src={item.productImageUrl} alt={item.productName} className="w-full h-full object-cover" />
+                      <img
+                        src={item.productImageUrl}
+                        alt={item.productName}
+                        className="w-full h-full object-cover"
+                      />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">{item.productName}</p>
+                    <p className="font-medium text-foreground">{item.productName}</p>
                     {(item.variantColor || item.variantSize) && (
-                      <p className="text-sm text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         {[item.variantColor, item.variantSize].filter(Boolean).join(' / ')}
                       </p>
                     )}
-                    <div className="flex justify-between items-center mt-1">
-                      <span className="text-sm text-gray-500">× {item.quantity} ({formatPrice(item.unitPrice)} / pièce)</span>
-                      <span className="font-semibold">{formatPrice(item.subtotal)}</span>
+                    <div className="flex justify-between items-center gap-3 mt-1">
+                      <span className="text-sm text-muted-foreground">
+                        × {item.quantity} ({formatPrice(item.unitPrice)} / pièce)
+                      </span>
+                      <span className="font-semibold text-foreground">
+                        {formatPrice(item.subtotal)}
+                      </span>
                     </div>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
 
-            {/* Totals */}
-            <div className="border-t border-gray-100 mt-4 pt-4 space-y-2 text-sm">
-              <div className="flex justify-between text-gray-500">
+            {/* Totaux */}
+            <div className="border-t border-border mt-4 pt-4 space-y-2 text-sm">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Sous-total</span>
                 <span>{formatPrice(order.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-gray-500">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Livraison</span>
                 {Number(order.shippingFee) === 0 ? (
-                  <span className="text-green-600 font-medium">Gratuite</span>
+                  <span className="text-success font-medium">Gratuite</span>
                 ) : (
                   <span>{formatPrice(order.shippingFee)}</span>
                 )}
               </div>
-              <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-100">
+              <div className="flex justify-between font-bold text-base pt-2 border-t border-border text-foreground">
                 <span>Total</span>
-                <span style={{ color: 'var(--color-gold)' }}>{formatPrice(order.total)}</span>
+                <span>{formatPrice(order.total)}</span>
               </div>
             </div>
-          </div>
+          </Card>
 
-          {/* Delivery */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <MapPin className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+          {/* Livraison */}
+          <Card className="p-6">
+            <h2 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-primary" aria-hidden="true" />
               Adresse de livraison
             </h2>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p className="font-medium text-gray-900">{order.deliveryFullName}</p>
-              <p>{order.deliveryDistrict}, {order.deliveryCity}</p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p className="font-medium text-foreground">{order.deliveryFullName}</p>
+              <p>
+                {order.deliveryDistrict}, {order.deliveryCity}
+              </p>
               <p>{order.deliveryAddress}</p>
-              {order.deliveryLandmark && <p className="text-gray-400">Repère : {order.deliveryLandmark}</p>}
-              <p>📞 {order.deliveryPhone}</p>
+              {order.deliveryLandmark && <p>Repère : {order.deliveryLandmark}</p>}
+              <p className="flex items-center gap-1.5">
+                <Phone className="w-3.5 h-3.5" aria-hidden="true" />
+                {order.deliveryPhone}
+              </p>
             </div>
-          </div>
+          </Card>
 
-          {/* Tracking */}
+          {/* Suivi */}
           {order.trackingNumber && (
-            <div className="card p-5 bg-blue-50 border-blue-100">
-              <div className="flex items-center gap-2 text-blue-800">
-                <Truck className="w-4 h-4" />
-                <span className="font-medium text-sm">Numéro de suivi : {order.trackingNumber}</span>
-              </div>
-            </div>
+            <Card className="p-5 border-accent bg-accent/10">
+              <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <Truck className="w-4 h-4 text-primary" aria-hidden="true" />
+                Numéro de suivi : {order.trackingNumber}
+              </p>
+            </Card>
           )}
 
           {/* Notes */}
           {order.notes && (
-            <div className="card p-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Notes</h3>
-              <p className="text-sm text-gray-600">{order.notes}</p>
-            </div>
+            <Card className="p-5">
+              <h2 className="text-sm font-semibold text-foreground mb-2">Notes</h2>
+              <p className="text-sm text-muted-foreground">{order.notes}</p>
+            </Card>
           )}
         </div>
       </div>

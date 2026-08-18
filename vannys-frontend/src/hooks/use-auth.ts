@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authApi } from '@/api/auth.api';
 import { useAuthStore } from '@/store/auth.store';
+import { getErrorMessage } from '@/utils';
 
 export const useLogin = () => {
   const { setAuth } = useAuthStore();
@@ -32,8 +33,8 @@ export const useRegister = () => {
       toast.success('Compte créé avec succès !');
       navigate('/');
     },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Erreur lors de la création du compte');
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'Erreur lors de la création du compte'));
     },
   });
 };

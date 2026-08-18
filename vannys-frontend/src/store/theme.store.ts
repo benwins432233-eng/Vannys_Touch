@@ -23,9 +23,8 @@ export const applyTheme = (mode: ThemeMode): void => {
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set) => ({
-      // Défaut volontairement clair : le mode sombre n'est proposé qu'une fois
-      // toutes les pages migrées vers les jetons (voir §4.2 du cahier des charges).
-      mode: 'light',
+      // Au premier chargement, on suit la préférence du système (§4.2).
+      mode: 'system',
       setMode: (mode) => {
         applyTheme(mode);
         set({ mode });
@@ -35,7 +34,7 @@ export const useThemeStore = create<ThemeState>()(
       name: 'vannys-theme',
       // Au rechargement, réappliquer le choix mémorisé avant le premier rendu utile.
       onRehydrateStorage: () => (state) => {
-        applyTheme(state?.mode ?? 'light');
+        applyTheme(state?.mode ?? 'system');
       },
     },
   ),

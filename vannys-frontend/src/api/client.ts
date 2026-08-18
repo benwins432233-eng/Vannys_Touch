@@ -19,7 +19,12 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 // ─── Response interceptor: auto-refresh on 401 ─────────────────
 let isRefreshing = false;
-let failedQueue: Array<{ resolve: (v: any) => void; reject: (v: any) => void }> = [];
+// Les requêtes reçues pendant un rafraîchissement attendent ici. La promesse
+// est résolue avec le nouveau jeton, ou rejetée avec l’erreur de rafraîchissement.
+let failedQueue: Array<{
+  resolve: (token: string | null) => void;
+  reject: (error: AxiosError) => void;
+}> = [];
 
 function processQueue(error: AxiosError | null, token: string | null = null) {
   failedQueue.forEach(({ resolve, reject }) => (error ? reject(error) : resolve(token)));

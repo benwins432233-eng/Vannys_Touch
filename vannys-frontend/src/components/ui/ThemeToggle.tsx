@@ -9,11 +9,7 @@ const OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
   { mode: 'system', label: 'Thème du système', Icon: Monitor },
 ];
 
-/**
- * Bascule clair / sombre / système.
- * Pas encore montée dans l'en-tête : elle n'y sera ajoutée qu'une fois toutes
- * les pages migrées vers les jetons, pour ne pas exposer d'écran à moitié sombre.
- */
+/** Bascule clair / sombre / système, présente dans l'en-tête boutique et admin. */
 export function ThemeToggle({ className }: { className?: string }) {
   const mode = useThemeStore((s) => s.mode);
   const setMode = useThemeStore((s) => s.setMode);

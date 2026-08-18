@@ -1,5 +1,7 @@
 import { forwardRef } from 'react';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import type { LinkProps } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/utils';
 
@@ -21,6 +23,21 @@ const SIZES: Record<Size, string> = {
   icon: 'h-11 w-11',
 };
 
+const BASE =
+  'inline-flex items-center justify-center gap-2 rounded-token font-semibold ' +
+  'transition-colors duration-200 disabled:opacity-50 disabled:pointer-events-none';
+
+/**
+ * Classes d'un bouton. Partagées par `Button` et `LinkButton` : une navigation
+ * reste un lien (clic milieu, ouverture dans un onglet) même si elle a l'allure
+ * d'un bouton.
+ */
+export const buttonClasses = (
+  variant: Variant = 'primary',
+  size: Size = 'md',
+  className?: string,
+): string => cn(BASE, VARIANTS[variant], SIZES[size], className);
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
@@ -37,14 +54,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       disabled={disabled || isLoading}
       aria-busy={isLoading || undefined}
-      className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-token font-semibold',
-        'transition-colors duration-200',
-        'disabled:opacity-50 disabled:pointer-events-none',
-        VARIANTS[variant],
-        SIZES[size],
-        className,
-      )}
+      className={buttonClasses(variant, size, className)}
       {...props}
     >
       {isLoading ? (
@@ -56,3 +66,50 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     </button>
   );
 });
+
+export interface LinkButtonProps extends Omit<LinkProps, 'className'> {
+  variant?: Variant;
+  size?: Size;
+  leftIcon?: ReactNode;
+  className?: string;
+}
+
+/** Lien de navigation présenté comme un bouton. */
+export function LinkButton({
+  variant = 'primary',
+  size = 'md',
+  leftIcon,
+  className,
+  children,
+  ...props
+}: LinkButtonProps) {
+  return (
+    <Link className={buttonClasses(variant, size, className)} {...props}>
+      {leftIcon}
+      {children}
+    </Link>
+  );
+}
+
+export interface ExternalLinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  variant?: Variant;
+  size?: Size;
+  leftIcon?: ReactNode;
+}
+
+/** Lien sortant (WhatsApp, téléphone…) présenté comme un bouton. */
+export function ExternalLinkButton({
+  variant = 'primary',
+  size = 'md',
+  leftIcon,
+  className,
+  children,
+  ...props
+}: ExternalLinkButtonProps) {
+  return (
+    <a className={buttonClasses(variant, size, className)} {...props}>
+      {leftIcon}
+      {children}
+    </a>
+  );
+}

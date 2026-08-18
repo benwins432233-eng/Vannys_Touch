@@ -8,6 +8,28 @@ import type { OrderStatus } from '@/types';
 export const cn = (...classes: (string | false | null | undefined)[]): string =>
   classes.filter(Boolean).join(' ');
 
+/**
+ * Message d'erreur affichable, quelle que soit la forme de l'erreur reçue.
+ *
+ * Axios range le corps de la réponse dans `error.response.data`, mais une panne
+ * réseau ou une exception JS n'ont pas cette forme : sans garde, on affichait
+ * « undefined » à l'utilisateur. On reste en `unknown` plutôt qu'en `any` pour
+ * que le compilateur impose ces vérifications.
+ */
+export const getErrorMessage = (
+  error: unknown,
+  fallback = "Une erreur est survenue. Veuillez réessayer.",
+): string => {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const data = (error as { response?: { data?: { message?: unknown } } }).response?.data;
+    const message = data?.message;
+    if (typeof message === 'string' && message.trim()) return message;
+    // NestJS renvoie un tableau de messages quand la validation d'un DTO échoue.
+    if (Array.isArray(message) && typeof message[0] === 'string') return message.join(' ');
+  }
+  return fallback;
+};
+
 export const formatPrice = (value: number | string): string => {
   return Number(value).toLocaleString('fr-FR') + ' FCFA';
 };
@@ -59,12 +81,13 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Annulée',
 };
 
+/** Teintes des jetons de conception — lisibles en thème clair comme sombre. */
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  processing: 'bg-blue-100 text-blue-800',
-  shipped: 'bg-purple-100 text-purple-800',
-  delivered: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
+  pending: 'bg-warning/15 text-warning',
+  processing: 'bg-accent/20 text-foreground',
+  shipped: 'bg-accent/20 text-foreground',
+  delivered: 'bg-success/15 text-success',
+  cancelled: 'bg-destructive/15 text-destructive',
 };
 
 export const getDiscountPercent = (price: number, originalPrice: number): number => {

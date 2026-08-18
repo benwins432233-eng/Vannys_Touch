@@ -1,10 +1,8 @@
-import { Link } from 'react-router-dom';
-import { ShoppingBag, Minus, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
 import { useCartStore } from '@/store/cart.store';
 import { formatPrice } from '@/utils';
-
-const FREE_SHIPPING_THRESHOLD = 50000;
-const SHIPPING_FEE = 2500;
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/utils/shipping';
+import { Button, Card, EmptyState, LinkButton, QuantityStepper } from '@/components/ui';
 
 export function CartPage() {
   const { items, removeItem, updateQuantity, clearCart } = useCartStore();
@@ -15,15 +13,18 @@ export function CartPage() {
   if (items.length === 0) {
     return (
       <div className="section page-container">
-        <div className="max-w-md mx-auto text-center py-20">
-          <ShoppingBag className="w-16 h-16 text-gray-200 mx-auto mb-6" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Votre panier est vide</h1>
-          <p className="text-gray-500 mb-8">Découvrez notre boutique et ajoutez des produits.</p>
-          <Link to="/products" className="btn-primary">
-            Découvrir la boutique
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
+        <EmptyState
+          className="max-w-md mx-auto"
+          icon={<ShoppingBag className="w-14 h-14" />}
+          title="Votre panier est vide"
+          description="Découvrez notre boutique et ajoutez des produits."
+          action={
+            <LinkButton to="/products">
+              Découvrir la boutique
+              <ArrowRight className="w-4 h-4" aria-hidden="true" />
+            </LinkButton>
+          }
+        />
       </div>
     );
   }
@@ -31,103 +32,111 @@ export function CartPage() {
   return (
     <div className="section">
       <div className="page-container">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Mon panier ({items.length} article{items.length > 1 ? 's' : ''})</h1>
+        <h1 className="text-2xl font-bold text-foreground mb-8">
+          Mon panier ({items.length} article{items.length > 1 ? 's' : ''})
+        </h1>
 
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Items */}
+          {/* Lignes du panier */}
           <div className="lg:col-span-2 space-y-4">
             {items.map((item) => {
               const key = `${item.product.id}:${item.color ?? ''}:${item.size ?? ''}`;
               const img = item.product.images.find((i) => i.isPrimary) ?? item.product.images[0];
 
               return (
-                <div key={key} className="card p-5 flex gap-5">
-                  <div className="w-24 h-28 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                    {img && <img src={img.urlMedium || img.url} alt={item.product.name} className="w-full h-full object-cover" />}
+                <Card key={key} className="p-5 flex gap-5">
+                  <div className="w-24 h-28 rounded-token overflow-hidden bg-muted shrink-0">
+                    {img && (
+                      <img
+                        src={img.urlMedium || img.url}
+                        alt={item.product.name}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between gap-2">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{item.product.name}</h3>
+                      <div className="min-w-0">
+                        <h2 className="font-semibold text-foreground">{item.product.name}</h2>
                         {(item.color || item.size) && (
-                          <p className="text-sm text-gray-400 mt-0.5">
+                          <p className="text-sm text-muted-foreground mt-0.5">
                             {[item.color, item.size].filter(Boolean).join(' / ')}
                           </p>
                         )}
                       </div>
-                      <button onClick={() => removeItem(item.product.id, item.color, item.size)} className="text-red-400 hover:text-red-600 p-1">
-                        <Trash2 className="w-4 h-4" />
+                      <button
+                        type="button"
+                        onClick={() => removeItem(item.product.id, item.color, item.size)}
+                        aria-label={`Retirer ${item.product.name} du panier`}
+                        className="p-2 h-9 rounded-token text-destructive transition-colors hover:bg-destructive/10"
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     </div>
 
-                    <p className="font-bold text-lg mt-2" style={{ color: 'var(--color-gold)' }}>
+                    <p className="font-bold text-lg mt-2 text-foreground">
                       {formatPrice(Number(item.product.price) * item.quantity)}
                     </p>
 
-                    <div className="flex items-center gap-3 mt-3">
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity - 1, item.color, item.size)}
-                        className="w-8 h-8 border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-medium w-8 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.quantity + 1, item.color, item.size)}
-                        className="w-8 h-8 border border-gray-200 rounded-full flex items-center justify-center hover:bg-gray-50"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                      <span className="text-sm text-gray-400 ml-2">
+                    <div className="flex items-center gap-3 mt-3 flex-wrap">
+                      <QuantityStepper
+                        value={item.quantity}
+                        onChange={(next) =>
+                          updateQuantity(item.product.id, next, item.color, item.size)
+                        }
+                        itemLabel={item.product.name}
+                      />
+                      <span className="text-sm text-muted-foreground">
                         × {formatPrice(item.product.price)} / pièce
                       </span>
                     </div>
                   </div>
-                </div>
+                </Card>
               );
             })}
 
-            <button onClick={clearCart} className="text-sm text-red-400 hover:text-red-600 underline mt-2">
+            <Button variant="ghost" size="sm" className="text-destructive" onClick={clearCart}>
               Vider le panier
-            </button>
+            </Button>
           </div>
 
-          {/* Summary */}
+          {/* Récapitulatif */}
           <div>
-            <div className="card p-6 sticky top-24">
-              <h2 className="font-semibold text-gray-900 mb-5">Récapitulatif</h2>
+            <Card className="p-6 sticky top-24">
+              <h2 className="font-semibold text-foreground mb-5">Récapitulatif</h2>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Sous-total</span>
-                  <span className="font-medium">{formatPrice(subtotal)}</span>
+                  <span className="text-muted-foreground">Sous-total</span>
+                  <span className="font-medium text-foreground">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Livraison</span>
+                  <span className="text-muted-foreground">Livraison</span>
                   {shipping === 0 ? (
-                    <span className="text-green-600 font-medium">Gratuite ✓</span>
+                    <span className="text-success font-medium">Gratuite</span>
                   ) : (
-                    <span className="font-medium">{formatPrice(shipping)}</span>
+                    <span className="font-medium text-foreground">{formatPrice(shipping)}</span>
                   )}
                 </div>
                 {shipping > 0 && (
-                  <p className="text-xs text-gray-400 bg-amber-50 px-3 py-2 rounded-lg">
-                    Plus que {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} pour la livraison gratuite !
+                  <p className="text-xs text-muted-foreground bg-muted px-3 py-2 rounded-token">
+                    Plus que {formatPrice(FREE_SHIPPING_THRESHOLD - subtotal)} pour la livraison
+                    gratuite !
                   </p>
                 )}
-                <div className="border-t border-gray-100 pt-3 flex justify-between font-bold text-base">
-                  <span>Total</span>
-                  <span style={{ color: 'var(--color-gold)' }}>{formatPrice(total)}</span>
+                <div className="border-t border-border pt-3 flex justify-between font-bold text-base">
+                  <span className="text-foreground">Total</span>
+                  <span className="text-foreground">{formatPrice(total)}</span>
                 </div>
               </div>
 
-              <Link to="/checkout" className="btn-primary w-full mt-6 text-center">
+              <LinkButton to="/checkout" className="w-full mt-6">
                 Commander maintenant
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link to="/products" className="btn-ghost w-full mt-2 text-sm text-center">
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </LinkButton>
+              <LinkButton to="/products" variant="ghost" className="w-full mt-2">
                 Continuer mes achats
-              </Link>
-            </div>
+              </LinkButton>
+            </Card>
           </div>
         </div>
       </div>
