@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingBag, Star } from 'lucide-react';
 import type { Product } from '@/types';
 import { formatPrice, getDiscountPercent } from '@/utils';
-import { useCartStore } from '@/store/cart.store';
+import { useAddToCart } from '@/hooks/use-cart';
 import { needsSelection } from '@/utils/variants';
 import { Badge } from '@/components/ui';
 import toast from 'react-hot-toast';
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function ProductCard({ product }: Props) {
-  const addItem = useCartStore((s) => s.addItem);
+  const add = useAddToCart();
   const primaryImage = product.images.find((i) => i.isPrimary) ?? product.images[0];
   const discount = product.originalPrice
     ? getDiscountPercent(Number(product.price), Number(product.originalPrice))
@@ -27,7 +27,7 @@ export function ProductCard({ product }: Props) {
     e.preventDefault();
     e.stopPropagation();
     if (!orderable || mustChoose) return;
-    addItem(product);
+    add(product);
     toast.success(`${product.name} ajouté au panier`);
   };
 

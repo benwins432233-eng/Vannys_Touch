@@ -88,6 +88,43 @@ export interface Product {
   createdAt: string;
 }
 
+// ─── Panier serveur ────────────────────────────────────────────
+
+/** Ligne du panier telle que le serveur la renvoie : prix et stock relus en base. */
+export interface ServerCartLine {
+  id: string;
+  variantId: string;
+  quantity: number;
+  size?: string | null;
+  color?: string | null;
+  stock: number;
+  /** Faux dès que la ligne bloque la commande (épuisée, retirée, quantité trop haute). */
+  available: boolean;
+  alert?: string;
+  unitPrice: number;
+  subtotal: number;
+  product: {
+    id: string;
+    name: string;
+    slug: string;
+    imageUrl?: string | null;
+  };
+}
+
+export interface ServerCart {
+  items: ServerCartLine[];
+  itemCount: number;
+  subtotal: number;
+  shippingFee: number;
+  total: number;
+  freeShippingThreshold: number;
+  hasIssues: boolean;
+  /** Message ponctuel : quantité ajustée, articles ignorés à la fusion… */
+  notice?: string;
+  /** Nombre de lignes locales non reprises, renvoyé par `POST /cart/merge`. */
+  skipped?: number;
+}
+
 // ─── Orders ────────────────────────────────────────────────────
 
 // Valeurs de l'enum MySQL orders_status

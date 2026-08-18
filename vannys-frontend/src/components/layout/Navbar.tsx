@@ -3,12 +3,13 @@ import { ShoppingBag, User, LogOut, Menu, X, LayoutDashboard } from 'lucide-reac
 import { useState } from 'react';
 import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
+import { useCart } from '@/hooks/use-cart';
 import { useLogout } from '@/hooks/use-auth';
 import { ThemeToggle } from '@/components/ui';
 
 export function Navbar() {
   const { isAuthenticated, user } = useAuthStore();
-  const itemCount = useCartStore((s) => s.items.reduce((n, i) => n + i.quantity, 0));
+  const { itemCount } = useCart();
   const toggleCart = useCartStore((s) => s.toggleCart);
   const { mutate: logout } = useLogout();
   const [menuOpen, setMenuOpen] = useState(false);

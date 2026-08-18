@@ -4,6 +4,7 @@ import { ordersApi, type CreateOrderPayload } from '@/api/orders.api';
 import type { OrderStatus } from '@/types';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '@/store/cart.store';
+import { CART_KEY } from './use-cart';
 import { getErrorMessage } from '@/utils';
 
 export const ORDERS_KEY = 'orders';
@@ -29,8 +30,10 @@ export const useCreateOrder = () => {
   return useMutation({
     mutationFn: (data: CreateOrderPayload) => ordersApi.create(data),
     onSuccess: (order) => {
+      // Panier local vidé, panier serveur relu : la commande le consomme.
       clearCart();
       qc.invalidateQueries({ queryKey: [ORDERS_KEY] });
+      qc.invalidateQueries({ queryKey: [CART_KEY] });
       toast.success('Commande passée avec succès !');
       navigate(`/orders/${order.id}`);
     },

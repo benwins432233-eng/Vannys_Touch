@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ShoppingBag, ArrowLeft, Info } from 'lucide-react';
-import { useCartStore } from '@/store/cart.store';
+import { useCart } from '@/hooks/use-cart';
 import { useCreateOrder } from '@/hooks/use-orders';
 import { formatPrice } from '@/utils';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/utils/shipping';
-import { Button, Card, InputField, LinkButton, TextareaField } from '@/components/ui';
+import {
+  Button,
+  Card,
+  InputField,
+  LinkButton,
+  SkeletonList,
+  TextareaField,
+} from '@/components/ui';
 
 export function CheckoutPage() {
-  const { items } = useCartStore();
+  const cart = useCart();
   const { mutate: createOrder, isPending } = useCreateOrder();
 
   const [form, setForm] = useState({
@@ -25,11 +31,19 @@ export function CheckoutPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const subtotal = items.reduce((s, i) => s + Number(i.product.price) * i.quantity, 0);
-  const shipping = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
-  const total = subtotal + shipping;
+  // Les montants affichés viennent du panier ; le serveur les recalcule à la
+  // création de la commande et c'est lui qui fait foi (§2.3).
+  if (cart.isLoading) {
+    return (
+      <div className="section page-container max-w-5xl">
+        <SkeletonList count={2} label="Chargement de votre commande" />
+      </div>
+    );
+  }
 
-  if (items.length === 0) return <Navigate to="/cart" replace />;
+  if (cart.lines.length === 0) return <Navigate to="/cart" replace />;
+  // Un panier qui ne peut pas partir renvoie au panier, où l'article est signalé.
+  if (cart.hasIssues) return <Navigate to="/cart" replace />;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,11 +51,11 @@ export function CheckoutPage() {
       ...form,
       notes: form.notes || undefined,
       deliveryLandmark: form.deliveryLandmark || undefined,
-      items: items.map((i) => ({
-        productId: i.product.id,
-        quantity: i.quantity,
-        color: i.color,
-        size: i.size,
+      items: cart.lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+        color: line.color ?? undefined,
+        size: line.size ?? undefined,
       })),
     });
   };
@@ -143,60 +157,53 @@ export function CheckoutPage() {
             <Card className="p-6 sticky top-24">
               <h2 className="font-semibold text-foreground mb-4">Votre commande</h2>
               <ul className="space-y-3 mb-5">
-                {items.map((item) => {
-                  const img =
-                    item.product.images.find((i) => i.isPrimary) ?? item.product.images[0];
-                  return (
-                    <li
-                      key={`${item.product.id}:${item.color ?? ''}:${item.size ?? ''}`}
-                      className="flex gap-3"
-                    >
-                      <div className="w-12 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
-                        {img && (
-                          <img
-                            src={img.urlThumbnail || img.url}
-                            alt={item.product.name}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground line-clamp-1">
-                          {item.product.name}
+                {cart.lines.map((line) => (
+                  <li key={line.key} className="flex gap-3">
+                    <div className="w-12 h-14 rounded-lg overflow-hidden bg-muted shrink-0">
+                      {line.imageUrl && (
+                        <img
+                          src={line.imageUrl}
+                          alt={line.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground line-clamp-1">
+                        {line.name}
+                      </p>
+                      {(line.color || line.size) && (
+                        <p className="text-xs text-muted-foreground">
+                          {[line.color, line.size].filter(Boolean).join(' / ')}
                         </p>
-                        {(item.color || item.size) && (
-                          <p className="text-xs text-muted-foreground">
-                            {[item.color, item.size].filter(Boolean).join(' / ')}
-                          </p>
-                        )}
-                        <div className="flex justify-between items-center mt-0.5">
-                          <span className="text-xs text-muted-foreground">× {item.quantity}</span>
-                          <span className="text-sm font-medium text-foreground">
-                            {formatPrice(Number(item.product.price) * item.quantity)}
-                          </span>
-                        </div>
+                      )}
+                      <div className="flex justify-between items-center mt-0.5">
+                        <span className="text-xs text-muted-foreground">× {line.quantity}</span>
+                        <span className="text-sm font-medium text-foreground">
+                          {formatPrice(line.subtotal)}
+                        </span>
                       </div>
-                    </li>
-                  );
-                })}
+                    </div>
+                  </li>
+                ))}
               </ul>
 
               <div className="border-t border-border pt-4 space-y-2 text-sm">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Sous-total</span>
-                  <span>{formatPrice(subtotal)}</span>
+                  <span>{formatPrice(cart.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Livraison</span>
-                  {shipping === 0 ? (
+                  {cart.shippingFee === 0 ? (
                     <span className="text-success font-medium">Gratuite</span>
                   ) : (
-                    <span>{formatPrice(shipping)}</span>
+                    <span>{formatPrice(cart.shippingFee)}</span>
                   )}
                 </div>
                 <div className="flex justify-between font-bold text-base pt-2 border-t border-border text-foreground">
                   <span>Total</span>
-                  <span>{formatPrice(total)}</span>
+                  <span>{formatPrice(cart.total)}</span>
                 </div>
               </div>
 

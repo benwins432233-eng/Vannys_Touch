@@ -152,6 +152,10 @@ export class OrdersService {
       },
     });
 
+    // La commande consomme le panier serveur : le laisser plein ferait
+    // recommander les mêmes articles au rechargement suivant.
+    await this.prisma.cartItem.deleteMany({ where: { cart: { userId: toId(userId) } } });
+
     const orderWithUser = { ...order, user: order.user as any };
     this.mail.sendOrderConfirmed(orderWithUser as any).catch(() => null);
     this.mail.sendAdminNewOrder(orderWithUser as any).catch(() => null);

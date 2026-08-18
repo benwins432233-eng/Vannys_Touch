@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { useCartMergeOnLogin } from '@/hooks/use-cart';
 import { RequireAuth, RequireAdmin, GuestOnly } from '@/components/auth/AuthGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { AdminLayout } from '@/components/layout/AdminLayout';
@@ -25,6 +26,9 @@ import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 
 export default function App() {
+  // Le panier rempli avant connexion rejoint le panier serveur (lot L2).
+  useCartMergeOnLogin();
+
   return (
     <Routes>
       {/* ── Guest-only ── */}

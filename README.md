@@ -158,6 +158,40 @@ pas garde une combinaison unique, taille et couleur nulles.
 > l'administration. Les anciennes lignes sont conservées dans la table
 > `product_variants_legacy`, supprimable une fois l'inventaire vérifié.
 
+## Panier serveur
+
+Depuis le lot L2, le panier d'un client connecté vit en base (`carts`,
+`cart_items`) : il le retrouve d'un appareil à l'autre, et un vidage de cache ne
+l'efface plus. Une ligne désigne une **variante** et une quantité, **jamais un
+prix** — le montant est relu en base à chaque affichage, pour qu'un panier
+ancien ne fige pas un tarif périmé.
+
+| Route | Rôle |
+| --- | --- |
+| `GET /api/v1/cart` | Lignes et totaux, calculés par le serveur |
+| `POST /api/v1/cart` | Ajoute `{ variantId, quantity }` ; un doublon incrémente la ligne |
+| `POST /api/v1/cart/merge` | Fusionne le panier local d'un visiteur qui se connecte |
+| `PATCH /api/v1/cart/:itemId` | Change la quantité — `0` supprime la ligne |
+| `DELETE /api/v1/cart/:itemId` | Retire une ligne |
+| `DELETE /api/v1/cart` | Vide le panier |
+
+Toutes ces routes exigent un jeton. Règles appliquées côté serveur :
+
+- quantité plafonnée au stock disponible **et** à 20 par ligne ;
+- chaque ligne renvoie `stock`, `available` et, le cas échéant, `alert`
+  (« Il ne reste que 2 article(s)… ») ; `hasIssues` signale au tunnel de
+  commande qu'un article bloque ;
+- un stock qui baisse après l'ajout n'est jamais corrigé en douce pendant une
+  lecture : la ligne est signalée, et seule la quantité réellement servable
+  compte dans les totaux ;
+- la fusion **ajoute** au panier existant plutôt que de le remplacer, et ignore
+  les articles introuvables au lieu d'échouer. Les paniers enregistrés avant le
+  lot L1 (sans `variantId`) sont résolus depuis produit + couleur + taille.
+
+Hors connexion, le panier reste dans le navigateur (`cart.store.ts`). Le hook
+`useCart()` expose une vue unique des deux mondes : les pages n'ont pas à savoir
+où vit le panier.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)

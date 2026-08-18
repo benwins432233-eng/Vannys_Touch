@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ShoppingBag, Star, ChevronLeft, Check } from 'lucide-react';
 import { useProduct } from '@/hooks/use-products';
 import { useCartStore } from '@/store/cart.store';
+import { useCart } from '@/hooks/use-cart';
 import { formatPrice, getDiscountPercent, cn } from '@/utils';
 import {
   colorsOf,
@@ -20,7 +21,7 @@ const UNAVAILABLE = 'opacity-50 line-through pointer-events-none';
 export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data: product, isLoading, isError, refetch } = useProduct(slug!);
-  const addItem = useCartStore((s) => s.addItem);
+  const { add } = useCart();
   const toggleCart = useCartStore((s) => s.toggleCart);
 
   const [selectedColor, setSelectedColor] = useState<string>();
@@ -75,7 +76,7 @@ export function ProductDetailPage() {
 
   const handleAddToCart = () => {
     if (!canOrder) return;
-    addItem(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
+    add(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
     toast.success('Produit ajouté au panier !');
@@ -83,7 +84,7 @@ export function ProductDetailPage() {
 
   const handleBuyNow = () => {
     if (!canOrder) return;
-    addItem(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
+    add(product, Math.min(quantity, maxQuantity), selectedColor, selectedSize);
     toggleCart();
   };
 
