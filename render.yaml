@@ -45,6 +45,9 @@ services:
         sync: false
       - key: MAIL_ADMIN_ADDRESS
         sync: false
+      # @deprecated — plus lues par l'application depuis le lot L6 : les frais
+      # de livraison vivent dans la table `settings` et s'éditent depuis
+      # l'administration. Conservées le temps d'une version, à retirer ensuite.
       - key: FREE_SHIPPING_THRESHOLD
         value: 50000
       - key: SHIPPING_FEE

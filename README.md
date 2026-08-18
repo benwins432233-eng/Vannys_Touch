@@ -331,6 +331,47 @@ n'a qu'un service worker par portée, en enregistrer un second remplacerait
 celui-ci. Il est servi avec `Cache-Control: no-store` — un worker périmé
 survivrait sinon à tous les déploiements suivants.
 
+## Réglages de boutique
+
+Les frais de livraison et le seuil de gratuité vivaient dans les variables
+d'environnement de Render : changer un tarif demandait un redéploiement. Le
+frontend en gardait sa propre copie en dur, si bien que les deux pouvaient
+afficher des montants différents. Le nom, le téléphone, le WhatsApp, l'email et
+l'adresse étaient, eux, écrits en dur dans le pied de page.
+
+Tout cela vit désormais dans la table `settings`, éditable depuis
+**Administration → Réglages**, et s'applique **sans redéploiement**.
+
+| Route | Rôle |
+| --- | --- |
+| `GET /api/v1/settings` | Réglages publics (lecture seule, sans jeton) |
+| `GET /api/v1/admin/settings` | Valeurs **et** catalogue des champs éditables |
+| `PUT /api/v1/admin/settings` | Modification partielle |
+
+Réglages disponibles : `shipping.fee`, `shipping.freeThreshold`,
+`shipping.message`, `shop.name`, `shop.phone`, `shop.whatsapp`, `shop.email`,
+`shop.address`, `payment.methods`.
+
+Le catalogue (`settings-catalog.ts`) est la source unique : clé, type, valeur par
+défaut et validation. Sans lui, `PUT /admin/settings` accepterait n'importe
+quelle clé et la boutique se retrouverait avec des réglages fantômes que
+personne ne lit. Une clé inconnue ou une valeur refusée annule **toute** la mise
+à jour — une modification à moitié appliquée laisserait un état incohérent.
+
+Quelques règles portées par la validation : les frais ne peuvent pas être
+négatifs, le WhatsApp n'accepte que des chiffres (`wa.me` casse sur un « + »), et
+au moins un mode de paiement doit rester activé, sans quoi plus personne ne peut
+commander.
+
+Les valeurs sont mises en cache 60 secondes côté serveur — elles sont relues à
+chaque calcul de panier. Le cache est vidé à l'écriture ; sur plusieurs
+instances, une modification met au plus une minute à se propager partout.
+
+> `FREE_SHIPPING_THRESHOLD` et `SHIPPING_FEE` ne sont plus lus. Ils restent dans
+> `render.yaml` le temps d'une version : la migration `7_shop_settings` a repris
+> leurs valeurs telles quelles, donc rien n'a changé pour les clientes le jour
+> du déploiement.
+
 ## Variables d'environnement requises
 
 ### Backend (Render)

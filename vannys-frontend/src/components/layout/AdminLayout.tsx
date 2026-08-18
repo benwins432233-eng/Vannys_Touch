@@ -5,6 +5,7 @@ import {
   ShoppingBag,
   Tag,
   Users,
+  Settings,
   LogOut,
   ChevronRight,
 } from 'lucide-react';
@@ -18,6 +19,7 @@ const NAV = [
   { to: '/admin/orders', label: 'Commandes', icon: ShoppingBag },
   { to: '/admin/categories', label: 'Catégories', icon: Tag },
   { to: '/admin/users', label: 'Utilisateurs', icon: Users },
+  { to: '/admin/settings', label: 'Réglages', icon: Settings },
 ];
 
 export function AdminLayout() {

@@ -6,11 +6,11 @@ import {
   ConflictException,
   Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SettingsService } from '../settings/settings.service';
 import {
   adminNewOrder,
   lowStock,
@@ -64,19 +64,13 @@ const USER_SUMMARY = {
 @Injectable()
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
-  private readonly freeShippingThreshold: number;
-  private readonly shippingFee: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
-    config: ConfigService,
-  ) {
-    // TODO (lot L6) : ces montants viendront de la table `settings`.
-    this.freeShippingThreshold = config.get<number>('FREE_SHIPPING_THRESHOLD', 50000);
-    this.shippingFee = config.get<number>('SHIPPING_FEE', 2500);
-  }
+    private readonly settings: SettingsService,
+  ) {}
 
   // ── Lecture ───────────────────────────────────────────────────
 
@@ -210,6 +204,9 @@ export class OrdersService {
     if (!requested.length) throw new BadRequestException('Votre panier est vide.');
 
     const reference = await this.generateReference();
+    // Lu avant d'ouvrir la transaction : une lecture de réglages ne doit pas
+    // allonger la durée d'un verrou sur les stocks.
+    const shipping = await this.settings.getShipping();
 
     const order = await this.prisma.$transaction(
       async (tx) => {
@@ -224,7 +221,7 @@ export class OrdersService {
 
         // 3. Recalculer les montants : rien de ce que le client envoie ne compte.
         const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
-        const shipping = shippingFeeFor(subtotal, this.freeShippingThreshold, this.shippingFee);
+        const shippingFee = shippingFeeFor(subtotal, shipping.freeThreshold, shipping.fee);
 
         // 4. Écrire la commande, ses lignes et son état initial.
         const created = await tx.order.create({
@@ -234,8 +231,8 @@ export class OrdersService {
             status: 'pending',
             notes: dto.notes || null,
             subtotal,
-            shippingFee: shipping,
-            total: subtotal + shipping,
+            shippingFee,
+            total: subtotal + shippingFee,
             payment_method: dto.paymentMethod ?? 'CASH_ON_DELIVERY',
             phone_number: dto.deliveryPhone,
             deliveryFullName: dto.deliveryFullName,

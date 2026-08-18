@@ -7,7 +7,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { useCartStore } from '@/store/cart.store';
 import type { CartItem } from '@/store/cart.store';
 import { getErrorMessage } from '@/utils';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/utils/shipping';
+import { useSettings } from '@/hooks/use-settings';
 import { findVariant, MAX_QUANTITY_PER_LINE } from '@/utils/variants';
 import type { Product, ServerCart } from '@/types';
 
@@ -131,6 +131,9 @@ export const toMergePayload = (items: CartItem[]): MergeCartItemPayload[] =>
 export function useCart(): CartView {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const qc = useQueryClient();
+  // Hors connexion, les montants affichés viennent des réglages de boutique ;
+  // connecté, c'est le serveur qui les calcule.
+  const settings = useSettings();
 
   const localItems = useCartStore((s) => s.items);
   const addLocal = useCartStore((s) => s.addItem);
@@ -199,7 +202,8 @@ export function useCart(): CartView {
         subtotal: serverCart?.subtotal ?? 0,
         shippingFee: serverCart?.shippingFee ?? 0,
         total: serverCart?.total ?? 0,
-        freeShippingThreshold: serverCart?.freeShippingThreshold ?? FREE_SHIPPING_THRESHOLD,
+        freeShippingThreshold:
+          serverCart?.freeShippingThreshold ?? settings['shipping.freeThreshold'],
         hasIssues: serverCart?.hasIssues ?? false,
         isLoading,
         isSyncing,
@@ -227,7 +231,8 @@ export function useCart(): CartView {
 
     const lines = localItems.map(localLine);
     const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
-    const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+    const freeThreshold = settings['shipping.freeThreshold'];
+    const shippingFee = subtotal >= freeThreshold ? 0 : settings['shipping.fee'];
 
     return {
       lines,
@@ -235,7 +240,7 @@ export function useCart(): CartView {
       subtotal,
       shippingFee,
       total: subtotal + shippingFee,
-      freeShippingThreshold: FREE_SHIPPING_THRESHOLD,
+      freeShippingThreshold: freeThreshold,
       hasIssues: lines.some((l) => !l.available),
       isLoading: false,
       isSyncing: false,
@@ -250,6 +255,7 @@ export function useCart(): CartView {
     };
   }, [
     isAuthenticated,
+    settings,
     serverCart,
     isLoading,
     isSyncing,

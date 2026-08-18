@@ -1,14 +1,24 @@
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin, MessageCircle, Facebook } from 'lucide-react';
+import { useSettings } from '@/hooks/use-settings';
 
 export function Footer() {
+  // Coordonnées éditables en administration : elles étaient en dur ici, et
+  // corriger un numéro de téléphone demandait un déploiement.
+  const settings = useSettings();
+  const shopName = settings['shop.name'];
+  const email = settings['shop.email'];
+  const phone = settings['shop.phone'];
+  const whatsapp = settings['shop.whatsapp'];
+  const address = settings['shop.address'];
+
   return (
     <footer className="bg-deep text-deep-foreground mt-auto">
       <div className="page-container py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Brand */}
           <div>
-            <h3 className="text-xl font-bold text-accent mb-3">Vannys Touch</h3>
+            <h3 className="text-xl font-bold text-accent mb-3">{shopName}</h3>
             <p className="text-sm leading-relaxed text-deep-muted">
               Votre boutique de mode en ligne. Des collections soigneusement sélectionnées pour sublimer votre style.
             </p>
@@ -17,7 +27,7 @@ export function Footer() {
                 href="https://whatsapp.com/channel/0029VbC8i279Bb5vOARShm02"
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Rejoindre la chaîne WhatsApp de Vannys Touch"
+                aria-label={`Rejoindre la chaîne WhatsApp de ${shopName}`}
                 className="p-2 rounded-token bg-deep-border/60 hover:bg-deep-border transition-colors"
               >
                 <MessageCircle className="w-4 h-4" aria-hidden="true" />
@@ -57,45 +67,57 @@ export function Footer() {
           <div>
             <h4 className="font-semibold mb-4">Contact</h4>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
-                <a
-                  href="mailto:vannystouch.shop@gmail.com"
-                  className="text-deep-muted hover:text-accent transition-colors"
-                >
-                  vannystouch.shop@gmail.com
-                </a>
-              </li>
+              {/* Chaque coordonnée n'apparaît que si elle est renseignée :
+                  une ligne vide avec une icône ne dit rien à personne. */}
+              {email && (
+                <li className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
+                  <a
+                    href={`mailto:${email}`}
+                    className="text-deep-muted hover:text-accent transition-colors"
+                  >
+                    {email}
+                  </a>
+                </li>
+              )}
 
-              <li className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
-                <a
-                  href="https://wa.me/2290141196651"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-deep-muted hover:text-accent transition-colors"
-                >
-                  +229 01 41 19 66 51
-                </a>
-              </li>
+              {phone && (
+                <li className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
+                  {whatsapp ? (
+                    <a
+                      href={`https://wa.me/${whatsapp}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-deep-muted hover:text-accent transition-colors"
+                    >
+                      {phone}
+                    </a>
+                  ) : (
+                    <span className="text-deep-muted">{phone}</span>
+                  )}
+                </li>
+              )}
 
-              <li className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
-                <a
-                  href="https://maps.app.goo.gl/v6D1x26R8XbUo9d7A"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-deep-muted hover:text-accent transition-colors underline-offset-4 hover:underline"
-                >
-                  F82W+4P8, Abomey-Calavi, Bénin
-                </a>
-              </li>
+              {address && (
+                <li className="flex items-start gap-2">
+                  <MapPin className="w-4 h-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
+                  <a
+                    href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-deep-muted hover:text-accent transition-colors underline-offset-4 hover:underline"
+                  >
+                    {address}
+                  </a>
+                </li>
+              )}
             </ul>
           </div>
         </div>
 
         <div className="border-t border-deep-border mt-10 pt-6 text-center text-xs text-deep-muted">
-          © {new Date().getFullYear()} Vannys Touch. Tous droits réservés.
+          © {new Date().getFullYear()} {shopName}. Tous droits réservés.
         </div>
       </div>
     </footer>

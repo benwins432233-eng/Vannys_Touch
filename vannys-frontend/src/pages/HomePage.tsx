@@ -5,7 +5,7 @@ import { useProducts } from '@/hooks/use-products';
 import { ProductCard } from '@/components/products/ProductCard';
 import { Skeleton } from '@/components/ui';
 import { formatPrice } from '@/utils';
-import { FREE_SHIPPING_THRESHOLD } from '@/utils/shipping';
+import { useSettings } from '@/hooks/use-settings';
 
 const FEATURES = [
   { icon: Truck, title: 'Livraison rapide', desc: 'Livraison à domicile dans tout le Bénin' },
@@ -49,6 +49,7 @@ const HERO_SLIDES = [
 
 
 export function HomePage() {
+  const settings = useSettings();
   const { data: featured, isLoading: featuredLoading } = useProducts({ featured: true, limit: 8 });
 
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -204,7 +205,9 @@ export function HomePage() {
         <div className="page-container text-center">
           <h2 className="text-3xl font-bold text-deep-foreground mb-4">
             Livraison gratuite dès{' '}
-            <span className="text-accent">{formatPrice(FREE_SHIPPING_THRESHOLD)}</span>
+            <span className="text-accent">
+              {formatPrice(settings['shipping.freeThreshold'])}
+            </span>
           </h2>
           <p className="text-deep-muted mb-8 max-w-md mx-auto">
             Commandez maintenant et recevez vos articles directement chez vous.

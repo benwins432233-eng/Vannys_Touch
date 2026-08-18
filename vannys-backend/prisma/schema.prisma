@@ -130,6 +130,21 @@ model ProductVariant {
   @@map("product_variants")
 }
 
+/// Réglage de boutique, en clé/valeur typée.
+///
+/// Les frais de livraison vivaient dans les variables d'environnement : changer
+/// un tarif demandait un redéploiement. La valeur est stockée en texte et
+/// convertie selon `type` — une table par réglage serait ingérable, et un
+/// schéma figé imposerait une migration à chaque nouveau paramètre.
+model Setting {
+  key       String        @id @db.VarChar(60)
+  value     String        @db.Text
+  type      settings_type
+  updatedAt DateTime?     @updatedAt @map("updated_at") @db.Timestamp(0)
+
+  @@map("settings")
+}
+
 /// Notification affichée dans l'application.
 ///
 /// `type` est une chaîne et non un ENUM : les types de notification se
@@ -435,6 +450,13 @@ enum users_role {
 enum account_tokens_type {
   email_verification
   password_reset
+}
+
+enum settings_type {
+  string
+  number
+  boolean
+  json
 }
 
 enum orders_payment_status {

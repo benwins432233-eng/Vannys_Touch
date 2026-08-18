@@ -4,8 +4,8 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 import { shippingFeeFor } from '../orders/order-rules';
 import { AddCartItemDto, MergeCartItemDto } from './dto/cart.dto';
 import { clampQuantity, lineStatus, MAX_QUANTITY_PER_LINE } from './cart-rules';
@@ -31,18 +31,10 @@ const ITEM_INCLUDE = {
 
 @Injectable()
 export class CartService {
-  private readonly freeShippingThreshold: number;
-  private readonly shippingFee: number;
-
   constructor(
     private readonly prisma: PrismaService,
-    config: ConfigService,
-  ) {
-    // TODO (lot L6) : ces montants viendront de la table `settings`, pour qu'un
-    // changement de tarif ne demande plus un redéploiement.
-    this.freeShippingThreshold = config.get<number>('FREE_SHIPPING_THRESHOLD', 50000);
-    this.shippingFee = config.get<number>('SHIPPING_FEE', 2500);
-  }
+    private readonly settings: SettingsService,
+  ) {}
 
   // ── Lecture ───────────────────────────────────────────────────
 
@@ -284,7 +276,10 @@ export class CartService {
     });
 
     const subtotal = lines.reduce((sum, l) => sum + l.subtotal, 0);
-    const shippingFee = shippingFeeFor(subtotal, this.freeShippingThreshold, this.shippingFee);
+    // Le tarif est relu à chaque affichage : un changement en administration
+    // doit se voir dans les paniers ouverts, pas au prochain redéploiement.
+    const shipping = await this.settings.getShipping();
+    const shippingFee = shippingFeeFor(subtotal, shipping.freeThreshold, shipping.fee);
 
     return {
       items: lines,
@@ -292,7 +287,7 @@ export class CartService {
       subtotal,
       shippingFee,
       total: subtotal + shippingFee,
-      freeShippingThreshold: this.freeShippingThreshold,
+      freeShippingThreshold: shipping.freeThreshold,
       /** Vrai dès qu'une ligne bloque la commande : à l'interface de le dire. */
       hasIssues: lines.some((l) => !l.available),
       ...(notice && { notice }),

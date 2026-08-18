@@ -29,6 +29,7 @@ import { AdminProductsPage } from '@/pages/admin/AdminProductsPage';
 import { AdminOrdersPage } from '@/pages/admin/AdminOrdersPage';
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { AdminSettingsPage } from '@/pages/admin/AdminSettingsPage';
 
 export default function App() {
   // Le panier rempli avant connexion rejoint le panier serveur (lot L2).
@@ -75,6 +76,7 @@ export default function App() {
           <Route path="/admin/orders" element={<AdminOrdersPage />} />
           <Route path="/admin/categories" element={<AdminCategoriesPage />} />
           <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
     </Routes>

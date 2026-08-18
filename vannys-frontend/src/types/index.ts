@@ -104,6 +104,34 @@ export interface Product {
   createdAt: string;
 }
 
+// ─── Réglages de boutique ──────────────────────────────────────
+
+/** Modes de règlement acceptés par le tunnel de commande. */
+export type PaymentMethod = 'CASH_ON_DELIVERY' | 'MTN' | 'MOOV' | 'ORANGE' | 'CELTIIS';
+
+/**
+ * Réglages servis par `GET /settings`.
+ * Les clés portent un point : elles sont accédées par index, jamais par `.`.
+ */
+export interface ShopSettings {
+  'shipping.fee': number;
+  'shipping.freeThreshold': number;
+  'shipping.message': string;
+  'shop.name': string;
+  'shop.phone': string;
+  'shop.whatsapp': string;
+  'shop.email': string;
+  'shop.address': string;
+  'payment.methods': PaymentMethod[];
+}
+
+/** Description d'un champ éditable, fournie par l'administration. */
+export interface SettingField {
+  key: keyof ShopSettings;
+  type: 'string' | 'number' | 'boolean' | 'json';
+  label: string;
+}
+
 // ─── Notifications ─────────────────────────────────────────────
 
 /**
